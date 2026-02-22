@@ -1,0 +1,11 @@
+{
+  "name": "MachiUi",
+  "version": "1.0.0",
+  "description": "UI framework for Machi Engine",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "author": "Your Name",
+  "license": "MIT"
+}
