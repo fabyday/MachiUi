@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_options(/utf-8)
 add_subdirectory(ThirdParty/yoga/yoga)
 add_subdirectory(ThirdParty/quickjs)
+add_subdirectory(ThirdParty/spdlog)
 
 file(GLOB_RECURSE MachiUi_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/Source/**/*.h)
 file(GLOB_RECURSE MachiUi_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/Source/**/*.cpp)
@@ -22,7 +23,7 @@ add_executable(test2 WIN32 examples/main_windowmanager.cpp)
 # target_link_libraries(test PRIVATE MachiUi)
 target_link_libraries(test2 PRIVATE MachiUi)
 # set_target_properties(test PROPERTIES LINK_FLAGS "/SUBSYSTEM:CONSOLE")
-set_target_properties(test2 PROPERTIES LINK_FLAGS  "/SUBSYSTEM:CONSOLE")
+set_target_properties(test2 PROPERTIES LINK_FLAGS "/SUBSYSTEM:CONSOLE")
 # set_target_properties(test2 PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
 
 
@@ -39,10 +40,10 @@ add_custom_command(TARGET test2 POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E echo "Target directory: $<TARGET_FILE_DIR:test2>"
     # 실행 파일이 있는 바로 그 폴더($<TARGET_FILE_DIR:test2>) 내부에 assets 링크 생성
     COMMAND ${CMAKE_COMMAND} -E remove_directory "$<TARGET_FILE_DIR:test2>/assets"
-    
+
     # Windows와 Unix 호환성을 위해 분기 처리 (권장)
     COMMAND ${CMAKE_COMMAND} -E create_symlink "${SOURCE_ASSETS}" "$<TARGET_FILE_DIR:test2>/assets"
-    
+
     COMMENT "Linking assets to the actual executable directory"
     VERBATIM
 )
