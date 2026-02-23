@@ -2,6 +2,5 @@
 **/dist/
 build/**
 *.log
-ThirdParty/**
 *.tmp
 *.bak

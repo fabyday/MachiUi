@@ -1,0 +1,6 @@
+[submodule "ThirdParty/yoga"]
+	path = ThirdParty/yoga
+	url = org-69631@github.com:facebook/yoga.git
+[submodule "ThirdParty/quickjs"]
+	path = ThirdParty/quickjs
+	url = git@github.com:quickjs-ng/quickjs.git

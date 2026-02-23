@@ -14,3 +14,4 @@ public:
     // 매 프레임 호출
     virtual void OnUpdate() = 0;
 };
+
