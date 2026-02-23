@@ -4,3 +4,6 @@
 [submodule "ThirdParty/quickjs"]
 	path = ThirdParty/quickjs
 	url = git@github.com:quickjs-ng/quickjs.git
+[submodule "ThirdParty/spdlog"]
+	path = ThirdParty/spdlog
+	url = git@github.com:gabime/spdlog.git
