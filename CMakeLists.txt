@@ -15,7 +15,7 @@ file(GLOB_RECURSE MachiUi_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/Source/**/*.cpp)
 add_library(MachiUi STATIC ${MachiUi_SOURCES} ${MachiUi_HEADERS})
 target_link_options(MachiUi INTERFACE /WHOLEARCHIVE:$<TARGET_FILE:MachiUi>)
 
-target_link_libraries(MachiUi PRIVATE qjs yogacore)
+target_link_libraries(MachiUi PRIVATE qjs yogacore spdlog::spdlog)
 target_include_directories(MachiUi PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 message("${CMAKE_CURRENT_SOURCE_DIR}/Source")
 # add_executable(test WIN32 examples/main.cpp)

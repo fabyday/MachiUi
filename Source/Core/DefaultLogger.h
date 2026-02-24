@@ -1,12 +1,15 @@
 #include "ILogger.h"
-
+#include <string_view>
 class DefaultLogger : public ILogger
 {
 
     //
+private:
     struct Impl;
 
     struct Impl *pImpl;
+
+    logInteral(level level ,  std::string_view fmt)
 
 public:
     virtual ~DefaultLogger() = default;
