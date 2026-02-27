@@ -2,6 +2,12 @@ project(MachiUI)
 cmake_minimum_required(VERSION 3.10)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+
+
+option(STANDALONE_MODE "stasndalone embeded" TRUE)
+
+
 # set(CMAKE_CXX_EXTENSIONS OFF)
 add_compile_options(/utf-8)
 add_subdirectory(ThirdParty/yoga/yoga)
@@ -47,3 +53,14 @@ add_custom_command(TARGET test2 POST_BUILD
     COMMENT "Linking assets to the actual executable directory"
     VERBATIM
 )
+
+
+set(JS_DIST_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/Source/Javascript/dist)
+set(JS_DIST_DEST $<TARGET_FILE_DIR:test2>/assets/platform)
+
+add_custom_command(TARGET test2 POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E remove_directory ${JS_DIST_DEST}
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${JS_DIST_SOURCE} ${JS_DIST_DEST}
+
+)
+

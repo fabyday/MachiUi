@@ -96,13 +96,36 @@ void ScriptManager::Impl::run(const std::string &code, const std::string &name, 
             JS_FreeCString(context, str);
         }
     }
-    JS_FreeValue(context, result);
 
     // 비동기 작업(Promise 등)이 남아있다면 실행
     JSContext *ctx_pending;
-    while (JS_ExecutePendingJob(runtime, &ctx_pending))
+    while (JS_ExecutePendingJob(runtime, &ctx_pending) > 0)
     {
+
+        std::cout << "Test" << std::endl;
     }
+
+    /// TEST CODE
+    // if (JS_IsPromise(result))
+    // {
+    //     // Promise의 상태를 강제로 확인 (0: Pending, 1: Fulfilled, 2: Rejected)
+    //     // ※ 주의: QuickJS 버전에 따라 함수명이 다를 수 있으니 확인 필요
+    //     int state = JS_PromiseState(context, result);
+    //     if (state == 2)
+    //     { // Rejected
+    //         JSValue reason = JS_PromiseResult(context, result);
+    //         const char *msg = JS_ToCString(context, reason);
+    //         std::cout << msg << std::endl;
+    //         JS_FreeCString(context, msg);
+    //         JS_FreeValue(context, reason);
+    //     }
+    //     else if (state == 0)
+    //     {
+    //         std::cout << "JS Promise is still PENDING. Module loading might be stuck." << std::endl;
+    //     }
+    // }
+
+    JS_FreeValue(context, result);
 }
 
 // 헬퍼: 예외 처리 로직을 Impl 안으로 격리

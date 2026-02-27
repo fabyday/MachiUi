@@ -1,20 +1,20 @@
 #include "ILogger.h"
 #include <string_view>
+
 class DefaultLogger : public ILogger
 {
 
-    //
-private:
-    struct Impl;
-
-    struct Impl *pImpl;
-
 public:
+    DefaultLogger();
     virtual ~DefaultLogger() = default;
-    virtual void LogInfo(const std::string &msg) = 0;
-    virtual void LogWarn(const std::string &msg) = 0;
-    virtual void LogError(const std::string &msg) = 0;
-    
-    virtual void LogWarn(const std::string &msg) = 0;
-    virtual void LogError(const std::string &msg) = 0;
+
+    virtual void logImpl(Level lv, const std::string &msg) override;
+};
+
+class NullLogger : public ILogger
+{
+public:
+    NullLogger() = default;
+    virtual ~NullLogger() = default;
+    virtual void logImpl(Level lv, const std::string &msg);
 };

@@ -1,3 +1,5 @@
+import Reconciler from "react-reconciler";
+
 // C++에서 주입해줄 전역 객체 (MachiNative) 정의
 interface MachiNative {
   createElement(type: string, props: any): number; // C++ 객체 포인터 반환
@@ -5,9 +7,15 @@ interface MachiNative {
   removeChild(parentPtr: number, childPtr: number): void;
   updateProp(ptr: number, key: string, value: any): void;
 }
+console.log("test is compleded");
 
 declare const MachiNative: MachiNative;
-
+(async () => {
+  try {
+    // Reconciler 실행 로직
+    console.log("Reconciler Start...");
+  } catch (e) {}
+})();
 const hostConfig: any = {
   // 1. 요소가 처음 만들어질 때 (예: <button />)
   createInstance(type: string, props: any) {
@@ -48,4 +56,10 @@ const hostConfig: any = {
   supportsMutation: true,
 };
 
-export default hostConfig;
+const MachiRenderer = Reconciler(hostConfig);
+
+export default {
+  render: (reactElement:any, domElement:any, callback:any) => {
+    MachiRenderer.updateContainer(reactElement, domElement, callback);
+  },
+};

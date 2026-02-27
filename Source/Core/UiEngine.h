@@ -6,20 +6,18 @@
 class UiEngine
 {
 
-
-    protected:
-    // construct All Components Objects, 
+protected:
+    // construct All Components Objects,
     void _bootstrapComponent();
     // call onInit for all components, this is where dependency injection happens
     void _initializeComponents();
+
 public:
     UiEngine();
     ~UiEngine();
 
     // 엔진 가동: 부품 조립 및 초기화
     void Init();
-
-    
 
     // 메인 루프: 모든 부품의 Update 호출
     void Run();

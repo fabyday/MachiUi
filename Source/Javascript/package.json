@@ -2,6 +2,7 @@
   "name": "machi-ui-build",
   "version": "1.0.0",
   "description": "Build environment for Machi Engine UI",
+  "etnry" : "./Reconciler/HostConfig.ts",
   "type": "module",
   "scripts": {
     "build": "webpack --mode production",

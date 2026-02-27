@@ -6,16 +6,20 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
+console.log(path.resolve(__dirname, "Reconciler/HostConfig.tsx"));
 const config: webpack.Configuration = {
   mode: "development",
   // 엔트리 포인트를 외부 Source/javascript 폴더로 지정
-  entry: path.resolve(__dirname, "Reconciler/HostConfig.tsx"),
+  entry: path.resolve(__dirname, "Reconciler/HostConfig.ts"),
 
   output: {
     path: path.resolve(__dirname, "dist"),
     filename: "machiUI-reconciler.js",
-    library: { type: "module" },
+    library: {
+      name: "MachiRenderer",
+      type: "assign",
+    },
+    globalObject: "globalThis",
   },
 
   resolve: {
@@ -36,14 +40,6 @@ const config: webpack.Configuration = {
         exclude: /node_modules/,
       },
     ],
-  },
-
-  // 3. 외부 의존성 처리 (중요!)
-  // react와 react-reconciler를 번들에 포함시키지 않고
-  // 사용하는 쪽에서 제공하도록(peerDependencies) 설정
-  externals: {
-    react: "react",
-    "react-reconciler": "react-reconciler",
   },
 
   experiments: {
