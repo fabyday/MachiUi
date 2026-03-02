@@ -1,20 +1,20 @@
 # 🚀 Machi-UI
 
-**React의 선언적 UI 프로그래밍과 DirectX 12의 렌더링을 결합한 라이브러리입니다.**
+**네이티브 그래픽 API 기반 엔진에서 React의 선언적 모델로 UI를 구성할 수 있도록 한 라이브러리입니다.**
 
 
 
 ## 🌟 Key Features
 
-* **Native Performance**: Electron이나 브라우저 엔진 없이 DX12 파이프라인에서 직접 렌더링하여 최소한의 오버헤드를 보장합니다.
-* **Declarative UI**: React의 Component, Hooks, State 관리 시스템을 그대로 사용하여 복잡한 게임 UI를 쉽게 구축합니다.
+* **Native Performance**: Electron이나 브라우저 엔진 없이 그래픽스(DX12, OpenGL, etc) 파이프라인에서 직접 렌더링하여 최소한의 오버헤드를 보장합니다.
+* **Declarative UI**: React의 Component, Hooks, State 관리 시스템을 그대로 사용하여 복잡한 UI를 쉽게 구축합니다.
 * **Flexbox Layout**: Yoga Engine 등을 내장하여 웹 개발자에게 익숙한 레이아웃 방식을 지원합니다.
 
 ---
 
 ## 🛠 Architecture
 
-이 프로젝트는 React에서 생성된 가상 DOM 노드를 C++의 DX12 렌더러로 전달하는 브리지 구조를 가집니다.
+이 프로젝트는 React에서 생성된 가상 DOM 노드를 C++의 네이티브 렌더러로 전달하는 브리지 구조를 가집니다.
 
 
 
