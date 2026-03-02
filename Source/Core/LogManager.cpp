@@ -1,6 +1,5 @@
 #include "ComponentRegistry.h"
 #include "LogManager.h"
-
 #include "DefaultLogger.h"
 
 void LogManager::OnInit(UiEngine *engine)
@@ -8,7 +7,7 @@ void LogManager::OnInit(UiEngine *engine)
 
 #ifdef STANDALONE_MODE
     defaultLogger = new DefaultLogger();
-    #else
+#else
     defaultLogger = new DefaultLogger();
     // defaultLogger = new NullLogger();
 #endif
@@ -30,7 +29,7 @@ void LogManager::setCustomLogger(ILogger *logger)
     this->defaultLogger = logger;
 }
 
-ILogger* LogManager::getLogger()
+ILogger *LogManager::getLogger()
 {
     return this->defaultLogger;
 }

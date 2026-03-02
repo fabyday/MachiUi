@@ -7,6 +7,8 @@
 #include "../Core/Element.h"
 #include "NativeBinder.h"
 #include "ClassRegistry.h"
+#include "../Core/LogManager.h"
+#include "../Core/ILogger.h"
 
 #if __cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L)
 // C++20 이상
@@ -244,6 +246,10 @@ static JSValue js_create_element(JSContext *ctx, JSValueConst this_val,
     {
         return JS_EXCEPTION;
     };
+
+    auto logManager = sm->getLogManger();
+    ILogger *logger = logManager->getLogger();
+
     const char *type = JS_ToCString(ctx, argv[0]);
     JSClassID classId = ClassRegistry::getOrCreateClassID(ctx, type);
     JSValue object = JS_NewObjectClass(ctx, classId);
@@ -251,6 +257,7 @@ static JSValue js_create_element(JSContext *ctx, JSValueConst this_val,
     Element *elementPtr = sm->getSceneManager()->createElement(type);
     if (!elementPtr)
     {
+        logger->LogError("Failed to create element of type: {}", type);
         std::cerr << "Failed to create element of type: " << type << std::endl;
         JS_FreeCString(ctx, type);
         return JS_EXCEPTION; // 요소 생성 실패 시 예외 처리
@@ -261,15 +268,29 @@ static JSValue js_create_element(JSContext *ctx, JSValueConst this_val,
     JS_FreeCString(ctx, type);
     return object;
 }
-
+////////////////////////////////////////////////////////////////////////////
+// C++ Native Functions for quickJS
 static JSValue js_root_render(JSContext *ctx, JSValueConst this_val,
                               int argc, JSValueConst *argv);
 
 static JSValue js_append_child(JSContext *ctx, JSValueConst this_val,
                                int argc, JSValueConst *argv);
-
+static JSValue js_remove_child(JSContext *ctx, JSValueConst this_val,
+                               int argc, JSValueConst *argv);
 static JSValue js_element_set_style(JSContext *ctx, JSValueConst this_val,
                                     int argc, JSValueConst *argv);
+static JSValue js_update_props(JSContext *ctx, JSValueConst this_val,
+                               int argc, JSValueConst *argv);
+// TODO detachChild()
+static JSValue js_create_element(JSContext *ctx, JSValueConst this_val,
+                                 int argc, JSValueConst *argv);
+
+static JSValue js_create_text_node(JSContext *ctx, JSValueConst this_val,
+                                   int argc, JSValueConst *argv);
+static JSValue js_update_text(JSContext *ctx, JSValueConst this_val,
+                              int argc, JSValueConst *argv);
+
+////////////////////////////////////////////////////////////////////////////
 
 // 1. Element용 함수 (공통)
 static const JSCFunctionListEntry element_funcs[] = {
@@ -326,8 +347,102 @@ static JSValue js_append_child(JSContext *ctx, JSValueConst this_val,
     return JS_UNDEFINED;
 }
 
+// removeChild function
+static JSValue js_remove_child(JSContext *ctx, JSValueConst this_val,
+                               int argc, JSValueConst *argv)
+{
+
+    return JS_UNDEFINED;
+};
+
+// TODO REMOVE THIS FUNCTION and DEFINITION
 static JSValue js_element_set_style(JSContext *ctx, JSValueConst this_val,
                                     int argc, JSValueConst *argv)
+{
+
+    return JS_UNDEFINED;
+}
+
+// helperFunction
+Element::AttrValue ToElementAttributeValue(JSContext *context, JSValue value)
+{
+
+    if (JS_IsBool(value))
+    {
+        return static_cast<bool>(JS_ToBool(context, value));
+    }
+    else if (JS_IsString(value))
+    {
+        const char *str = JS_ToCString(context, value);
+        std::string res(str);
+        JS_FreeCString(context, str);
+        return res;
+    }
+    else if (JS_IsNumber(value))
+    {
+        double d;
+        JS_ToFloat64(context, &d, value);
+        if (d >= static_cast<double>(INT32_MIN) && d <= static_cast<double>(INT32_MAX))
+        {
+            return int(d);
+        }
+        return float(d);
+    }
+
+    return std::monostate();
+}
+
+/**
+ *
+ * arguments in argv
+ * @param
+ * node_ptr target node
+ * prop_key : js object's property key(text, color and so on...)
+ * prop_value : new value
+ */
+static JSValue js_update_props(JSContext *ctx, JSValueConst this_val,
+                               int argc, JSValueConst *argv)
+{
+    ScriptManager *sm = static_cast<ScriptManager *>(JS_GetContextOpaque(ctx));
+
+    if (!sm)
+    {
+        return JS_EXCEPTION;
+    }
+
+    SceneManager *sceneManager = sm->getSceneManager();
+    if (!sceneManager)
+    {
+        return JS_EXCEPTION;
+    }
+
+    if (argc < 3)
+    {
+        //
+        return JS_EXCEPTION;
+    }
+    int64_t ptr;
+    JS_ToInt64(ctx, &ptr, argv[0]);
+    Element *element = reinterpret_cast<Element *>(ptr);
+
+    const char *key = JS_ToCString(ctx, argv[1]);
+
+    auto value = ToElementAttributeValue(ctx, argv[2]);
+    // element->ApplyAttributes(key, value);
+
+    JS_FreeCString(ctx, key);
+    return JS_UNDEFINED;
+}
+// TODO detachChild()
+
+static JSValue js_create_text_node(JSContext *ctx, JSValueConst this_val,
+                                   int argc, JSValueConst *argv)
+{
+
+    return JS_UNDEFINED;
+}
+static JSValue js_update_text(JSContext *ctx, JSValueConst this_val,
+                              int argc, JSValueConst *argv)
 {
 
     return JS_UNDEFINED;
@@ -376,7 +491,12 @@ void register_native_method(JSContext *ctx)
     JSValue native = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, native, "createElement", JS_NewCFunction(ctx, js_create_element, "createElement", 2));
     JS_SetPropertyStr(ctx, native, "createRoot", JS_NewCFunction(ctx, js_create_root, "createRoot", 2));
+    JS_SetPropertyStr(ctx, native, "appendChild", JS_NewCFunction(ctx, js_append_child, "appendChild", 2));
+    JS_SetPropertyStr(ctx, native, "removeChild", JS_NewCFunction(ctx, js_remove_child, "removeChild", 2));
+    JS_SetPropertyStr(ctx, native, "updateProps", JS_NewCFunction(ctx, js_update_props, "updateProps", 2));
+    JS_SetPropertyStr(ctx, native, "createTextNode", JS_NewCFunction(ctx, js_create_text_node, "createTextNode", 2));
+    JS_SetPropertyStr(ctx, native, "updateText", JS_NewCFunction(ctx, js_update_text, "updateText", 2));
+
     register_default_elements(ctx);
-    // appendChild, updateProp 등도 동일하게 등록...
     JS_SetPropertyStr(ctx, JS_GetGlobalObject(ctx), "MachiNative", native);
 }

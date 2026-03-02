@@ -2,6 +2,8 @@
 #include "ComponentRegistry.h"
 #include "UiEngine.h"
 #include "SceneGraph.h"
+#include "LogManager.h"
+#include "ILogger.h"
 
 SceneManager::SceneManager() : nextElementId(1)
 {
@@ -13,6 +15,7 @@ SceneManager::~SceneManager()
 void SceneManager::OnInit(UiEngine *engine)
 {
     this->elementFactory = engine->GetComponent<ElementFactory>();
+    this->logManager = engine->GetComponent<LogManager>();
 }
 
 void SceneManager::OnUpdate()
@@ -21,12 +24,13 @@ void SceneManager::OnUpdate()
 
 uint64_t SceneManager::generateElementId()
 {
+
     return nextElementId++;
 }
 
 uint64_t SceneManager::createSceneGraph(const std::string &sceneName)
 {
-
+    this->logManager->getLogger()->LogDebug("{}", "create SceneGraph");
     const uint64_t sceneGraphId = this->generateElementId();
 
     sceneGraphMap[sceneGraphId] = std::make_unique<SceneGraph>(sceneGraphId, sceneName, this);
@@ -36,6 +40,7 @@ uint64_t SceneManager::createSceneGraph(const std::string &sceneName)
 
 void SceneManager::destroySceneGraph(const uint64_t Id)
 {
+    this->logManager->getLogger()->LogDebug("{}", "destroy SceneGraph");
     auto it = sceneGraphMap.find(Id);
     if (it != sceneGraphMap.end())
     {
@@ -58,14 +63,14 @@ bool SceneManager::createRoot(uint64_t SceneGraphId)
     SceneGraph *graph = this->getSceneGraph(SceneGraphId);
     if (!graph)
     {
-        std::cerr << "SceneGraph with ID " << SceneGraphId << " not found." << std::endl;
+        this->logManager->getLogger()->LogError("{} {}", SceneGraphId, "create SceneGraph");
         return false;
     }
 
     Element *rootElement = this->createElement("Root");
     if (!rootElement)
     {
-        std::cerr << "Failed to create root element for SceneGraph ID: " << SceneGraphId << std::endl;
+        this->logManager->getLogger()->LogError("{} : {}", "Failed to create root element for SceneGraph ID", SceneGraphId);
         return false;
     }
     graph->setRoot(rootElement);
@@ -79,7 +84,7 @@ Element *SceneManager::createElement(const std::string &type)
 
     if (element == nullptr)
     {
-        std::cerr << "Failed to create element of type: " << type << std::endl;
+        this->logManager->getLogger()->LogError("{} : {}", "Failed to create element of type", type);
         return nullptr;
     }
 
@@ -110,8 +115,41 @@ Element *SceneManager::getElement(const uint64_t Id)
 
 void SceneManager::destroyAllChildren(const uint64_t Id)
 {
-    //TODO: 구현 필요
+    // TODO: 구현 필요
 }
 
+void SceneManager::attachElementToGraph(uint64_t graphId, uint64_t elementId)
+{
+    SceneGraph *graph = this->getSceneGraph(graphId);
+    if (!graph)
+    {
+    }
+}
+
+void SceneManager::detachElementToGraph(uint64_t graphId, uint64_t elementId)
+{
+}
+
+void SceneManager::removeElementToGraph(uint64_t graphId, uint64_t elementId)
+{
+}
+
+void SceneManager::updateAttribute(uint64_t ElementId, const std::string &key, const Element::AttrValue &value)
+{
+    Element *element = this->getElement(ElementId);
+    if (element)
+    {
+        element->ApplyAttributes(key, value);
+        element->setDirtyFlag(true);
+        this->dirtyElementLists.push_back(ElementId);
+    }
+}
+
+bool SceneManager::isMounted(uint64_t elementId)
+{
+    auto elem = this->getElement(elementId);
+    return true;
+    
+}
 
 REGISTER_UI_COMPONENT(SceneManager, ComponentPhase::System);

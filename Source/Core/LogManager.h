@@ -1,5 +1,6 @@
 #include "IComponent.h"
-class ILogger;
+#include "ILogger.h"
+
 
 class LogManager : public IComponent
 {

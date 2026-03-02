@@ -15,7 +15,7 @@ public:
 struct RawArg
 {
     const void *value;
-    const std::type_info &type;
+    // const std::type_info &type;
     std::function<void(const void *, IArgVisitor &)> applier;
 };
 
@@ -24,7 +24,26 @@ inline RawArg make_arg(const T &val)
 {
     return {&val, [](const void *p, IArgVisitor &v)
             {
-                v.Visit(*static_cast<const T *>(p))
+                const T &data = *static_cast<const T *>(p);
+
+                // compile time check Type
+                if constexpr (std::is_integral_v<T>)
+                {
+                    v.Visit(static_cast<int>(data));
+                }
+                else if constexpr (std::is_floating_point_v<T>)
+                {
+                    v.Visit(static_cast<double>(data));
+                }
+                else if constexpr (std::is_convertible_v<T, std::string_view>)
+                {
+                    v.Visit(std::string_view(data));
+                }
+                else
+                {
+                    // 처리할 수 없는 타입일 경우 컴파일 에러 발생
+                    static_assert(sizeof(T) == 0, "Unsupported type for IArgVisitor");
+                }
             }};
 };
 

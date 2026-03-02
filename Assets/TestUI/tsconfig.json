@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "jsx": "react-jsx", // 
+    "moduleResolution": "node" /* 필수: 노드 방식의 모듈 해석 */,
+    "esModuleInterop": true /* 필수: CommonJS와 ESM 혼용 가능케 함 */,
+    "types": ["node"] /* 필수: @types/node를 전역으로 불러옴 */,
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "*": ["./src/*"],
+      "@machi/core/*": ["../../Source/Javascript/*"]
+    }
+  },
+  "include": [
+    "./src/**/*",
+    "./webpack.config.ts",
+    "../../Source/Javascript/**/*"
+  ]
+}

@@ -24,6 +24,7 @@ ScriptManager::~ScriptManager() = default;
 void ScriptManager::Init()
 {
 }
+
 void ScriptManager::ReloadScripts()
 {
 }
@@ -43,6 +44,7 @@ void ScriptManager::OnInit(UiEngine *engine)
     }
 
     this->m_sceneManager = engine->GetComponent<SceneManager>();
+    this->logManager = engine->GetComponent<LogManager>();
 }
 
 void ScriptManager::OnUpdate()

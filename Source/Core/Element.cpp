@@ -37,36 +37,46 @@ std::unordered_map<std::string, StyleFunc> styleMap = {
          ApplyDimensionStyle(n, v, YGNodeStyleSetFlexBasis, YGNodeStyleSetFlexBasisPercent, YGNodeStyleSetFlexBasisAuto);
      }}};
 
-using AttrFunc = std::function<void(Element *, const std::string &)>;
+using AttrFunc = std::function<void(Element *, const Element::AttrValue &)>;
 
 /**
  * 속성 맵: 문자열 키를 멤버 함수에 매핑
  */
 static std::unordered_map<std::string, AttrFunc> attrMap = {
-    {"text", [](Element *elem, const std::string &value)
+    {"text", [](Element *elem, const Element::AttrValue &value)
      {
-         elem->setText(value);
+         const std::string *valueString = std::get_if<std::string>(&value);
+         elem->setText(*valueString);
      }
 
     },
-    {"id", [](Element *elem, const std::string &value)
+    {"id", [](Element *elem, const Element::AttrValue &value)
      {
-         elem->setId(value);
+         const std::string *valueString = std::get_if<std::string>(&value);
+
+         elem->setId(*valueString);
      }
 
     },
-    {"src", [](Element *elem, const std::string &value)
+    {"src", [](Element *elem, const Element::AttrValue &value)
      {
-         elem->setSrc(value);
+         const std::string *valueString = std::get_if<std::string>(&value);
+         elem->setSrc(*valueString);
      }
 
     },
-    {"visible", [](Element *elem, const std::string &value)
+    {"visible", [](Element *elem, const Element::AttrValue &value)
      {
-         elem->setVisible(value == "true" || value == "1");
-     }
-
-    },
+         if (std::holds_alternative<std::string>(value))
+         {
+             auto valueString = std::get<std::string>(value);
+             elem->setVisible(valueString == "true" || valueString == "1");
+         }
+         else
+         {
+             elem->setVisible(std::get<bool>(value));
+         }
+     }},
 };
 
 // style apply helper class
@@ -106,7 +116,7 @@ void StyleApplier::ApplyStyle(YGNodeRef node, const std::string &key, const std:
 class AttributeApplier
 {
 public:
-    static void ApplyAttribute(Element *element, const std::string &key, const std::string &value);
+    static void ApplyAttribute(Element *element, const std::string &key, const Element::AttrValue &value);
     static bool HasKey(const std::string &key);
     static std::vector<std::string> GetAllStyleKeys();
 };
@@ -126,7 +136,7 @@ bool AttributeApplier::HasKey(const std::string &key)
     return attrMap.find(key) != attrMap.end();
 }
 
-void AttributeApplier::ApplyAttribute(Element *element, const std::string &key, const std::string &value)
+void AttributeApplier::ApplyAttribute(Element *element, const std::string &key, const Element::AttrValue &value)
 {
     attrMap[key](element, value);
 }
@@ -157,8 +167,13 @@ void Element::SetProperty(const std::string &key, const std::string &value)
     }
 }
 
-void Element::ApplyAttributes(const std::string &key, const std::string &value)
+/**
+ *
+ */
+// void Element::ApplyAttributes(const std::string &key, const std::string &value)
+void Element::ApplyAttributes(const std::string &key, Element::AttrValue value)
 {
+
     if (AttributeApplier::HasKey(key))
     {
         AttributeApplier::ApplyAttribute(this, key, value);

@@ -6,13 +6,25 @@
 #include "IComponent.h"
 #include "ElementFactory.h"
 
+class LogManager;
+
+
+
 class SceneManager : public IComponent
 {
 
+    // manager dependency
+    LogManager* logManager = nullptr;
+
+
+    //helper
     ElementFactory *elementFactory = nullptr;
 
     // Zero is reserved for null pointer, so we start from 1
     uint64_t nextElementId = 1;
+
+
+    std::vector<uint64_t> dirtyElementLists;
 
     /// object pool for all elements, key is pointer value of element, value is unique_ptr of element
     std::unordered_map<uint64_t, std::unique_ptr<Element>> objectPool;
@@ -42,6 +54,13 @@ public:
     void destroyElement(const uint64_t Id);
     void destroyAllChildren(const uint64_t Id);
     Element *getElement(const uint64_t Id);
+
+    // Element and Graph manipulation
+    void attachElementToGraph(uint64_t graphId, uint64_t elementId);
+    void detachElementToGraph(uint64_t graphId, uint64_t elementId);
+    void removeElementToGraph(uint64_t graphId, uint64_t elementId);
+    
+    void updateAttribute(uint64_t ElementId, const std::string &key, const Element::AttrValue &value);
 
     // check if
     bool isMounted(uint64_t elementId);

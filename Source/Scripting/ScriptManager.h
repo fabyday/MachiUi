@@ -15,9 +15,12 @@ struct ScriptExecutionContext
     SceneGraph *defaultSceneGraph;                  // this is main Scene,
     std::vector<SceneGraph *> auxiliarySceneGraphs; // auxilary Scenes
 };
-
+class LogManager;
+class UiEngine;
 class ScriptManager : public IComponent
 {
+
+    LogManager *logManager = nullptr;
 
 public:
     ScriptManager();
@@ -59,6 +62,7 @@ public:
 
     IFIleLoader *GetFileLoader() { return m_fileLoader; }
     SceneManager *getSceneManager() { return m_sceneManager; }
+    LogManager *getLogManger() { return logManager; }
 
 private:
     struct Impl;

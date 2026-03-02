@@ -60,11 +60,50 @@ void DefaultLogger::logImpl(Level lv, const std::string &msg)
     case Level::DEBUG:
         spdlog::debug(msg);
         break;
+    case Level::ERROR:
+        spdlog::error(msg);
+        break;
+    case Level::WARN:
+        spdlog::warn(msg);
+        break;
+    case Level::TRACE:
+        spdlog::trace(msg);
+        break;
+    case Level::CRITIAL:
+        spdlog::critical(msg);
+        break;
     case Level::INFO:
     default:
         spdlog::info(msg);
         break;
     }
+}
+
+void DefaultLogger::setLevel(Level lv)
+{
+    switch (lv)
+    {
+    case Level::DEBUG:
+        spdlog::set_level(spdlog::level::debug);
+        break;
+    case Level::ERROR:
+        spdlog::set_level(spdlog::level::err);
+        break;
+    case Level::WARN:
+        spdlog::set_level(spdlog::level::warn);
+        break;
+    case Level::TRACE:
+        spdlog::set_level(spdlog::level::trace);
+        break;
+    case Level::INFO:
+    default:
+        spdlog::set_level(spdlog::level::info);
+        break;
+    }
+}
+
+void NullLogger::setLevel(Level lv)
+{
 }
 
 void NullLogger::logImpl(Level lv, const std::string &msg)

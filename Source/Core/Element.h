@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <yoga/Yoga.h>
 #include <memory>
+#include <variant>
 #include <vector>
 
 // forward declaration
@@ -11,6 +12,10 @@ class SceneGraph;
 // Dom Element class - this is the base class for all elements in the DOM tree
 class Element
 {
+public:
+    // monostate := null | undefined
+    using AttrValue = std::variant<std::monostate, bool, int, float, std::string>;
+
 private:
     YGNodeRef ygNode;
 
@@ -18,6 +23,7 @@ private:
 
     // Scene Manager will manage and identify elements by their unique ID, which is a string in this case
     uint64_t uid;
+    bool dirtyFlag;
 
     // basic attributes on JS Side (id, text, src, etc.)
     std::string id;
@@ -26,7 +32,7 @@ private:
     bool visible;
 
     // other attributes
-    std::unordered_map<std::string, std::string> attributes;
+    std::unordered_map<std::string, Element::AttrValue> attributes;
 
     // DOM Elem children and parent
     std::vector<Element *> children;
@@ -95,12 +101,22 @@ public:
         return sceneGraph;
     }
 
+    void setDirtyFlag(bool flag)
+    {
+        this->dirtyFlag = flag;
+    }
+
+    bool getDirtyFlag()
+    {
+        return dirtyFlag;
+    }
+
     virtual void SetProperty(const std::string &key, const std::string &value);
-    virtual void ApplyAttributes(const std::string &key, const std::string &value);
+    // virtual void ApplyAttributes(const std::string &key, const std::string &value);
+    virtual void ApplyAttributes(const std::string &key, AttrValue value);
     void appendChild(Element *child);
 
-
-    void updateSceneRecursively(SceneGraph * sceneGraph);
+    void updateSceneRecursively(SceneGraph *sceneGraph);
 
     // attach renderer or etc component to element,
     void onAttachElement();
