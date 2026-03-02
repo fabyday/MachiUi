@@ -1,5 +1,6 @@
 #include "ScriptManager.h"
 #include "../Core/SceneManager.h"
+#include "../Core/LogManager.h"
 struct JSModuleDef;
 class JSRuntime;
 class JSContext;
@@ -88,7 +89,10 @@ void ScriptManager::pushContext(ScriptExecutionContext *context)
 
 void ScriptManager::popContext()
 {
-    ScriptExecutionContextStack.pop_back();
+    if (!ScriptExecutionContextStack.empty())
+    {
+        ScriptExecutionContextStack.pop_back();
+    }
 }
 
 ScriptExecutionContext *ScriptManager::getActiveContext()

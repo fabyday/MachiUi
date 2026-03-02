@@ -258,12 +258,11 @@ static JSValue js_create_element(JSContext *ctx, JSValueConst this_val,
     if (!elementPtr)
     {
         logger->LogError("Failed to create element of type: {}", type);
-        std::cerr << "Failed to create element of type: " << type << std::endl;
         JS_FreeCString(ctx, type);
         return JS_EXCEPTION; // 요소 생성 실패 시 예외 처리
     }
     JS_SetOpaque(object, elementPtr);
-    std::cout << "[JS Native] Create Element of type: " << type << " with ID: " << elementPtr->getId() << std::endl;
+    logger->LogDebug("[JS Native] Create Element of type: {} with ID: {}", type, elementPtr->getId());
 
     JS_FreeCString(ctx, type);
     return object;

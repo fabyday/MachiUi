@@ -36,7 +36,7 @@ int main()
     }
     // engine.Init();
     // engine.Run();
-    WindowManager wm;
-    wm.createWindow("Test Window", 800, 600);
-    wm.launch();
+    // WindowManager wm;
+    // wm.createWindow("Test Window", 800, 600);
+    // wm.launch();
 }

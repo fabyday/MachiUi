@@ -2,7 +2,7 @@ project(MachiUI)
 cmake_minimum_required(VERSION 3.10)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
+set(BUILD_TEST ON)
 
 
 option(STANDALONE_MODE "stasndalone embeded" TRUE)
@@ -61,6 +61,11 @@ set(JS_DIST_DEST $<TARGET_FILE_DIR:test2>/assets/platform)
 add_custom_command(TARGET test2 POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E remove_directory ${JS_DIST_DEST}
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${JS_DIST_SOURCE} ${JS_DIST_DEST}
-
 )
+
+
+
+if(BUILD_TEST)
+    add_subdirectory(Test)
+endif()
 
