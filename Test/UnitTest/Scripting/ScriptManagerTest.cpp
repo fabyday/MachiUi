@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
-#include "../Source/Scripting/ScriptManager.h" // 경로 주의
-
+#include <Scripting/ScriptManager.h>
 TEST(ScriptManagerTest, ContextStackPushPop) {
     // ScriptManager sm;
     ScriptExecutionContext ctx;

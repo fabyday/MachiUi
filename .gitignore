@@ -5,3 +5,6 @@ build/**
 *.tmp
 *.bak
 
+
+# for mac setup 
+.DS_Store
