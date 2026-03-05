@@ -7,25 +7,51 @@ set(BUILD_TEST ON)
 
 option(STANDALONE_MODE "stasndalone embeded" TRUE)
 
+set(OS_RELATED_LIBS "")
+if(MSVC)
+    add_compile_options(/utf-8)
+else()
+    # clang, gcc don't need utf-8 flag
 
-# set(CMAKE_CXX_EXTENSIONS OFF)
-add_compile_options(/utf-8)
+
+endif()
+
 add_subdirectory(ThirdParty/yoga/yoga)
 add_subdirectory(ThirdParty/quickjs)
 add_subdirectory(ThirdParty/spdlog)
 
 file(GLOB_RECURSE MachiUi_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/Source/**/*.h)
 file(GLOB_RECURSE MachiUi_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/Source/**/*.cpp)
-
-
+if(WIN32)
+    message("이곳은 윈도우 환경입니다.")
+elseif(APPLE)
+message("APPLE")
+set(OS_RELATED_LIBS "-framework AppKit" "-framework Metal" "-framework QuartzCore")
+elseif(UNIX)
+    message("이곳은 리눅스 또는 기타 유닉스 환경입니다.")
+endif()
+message("test232")
+    
+message(STATUS "Current OS_RELATED_LIBS: ${OS_RELATED_LIBS}")
+message("${OS_RELATED_LIBS}")
 add_library(MachiUi STATIC ${MachiUi_SOURCES} ${MachiUi_HEADERS})
 target_link_options(MachiUi INTERFACE /WHOLEARCHIVE:$<TARGET_FILE:MachiUi>)
 
-target_link_libraries(MachiUi PRIVATE qjs yogacore spdlog::spdlog)
+target_link_libraries(MachiUi PRIVATE qjs yogacore spdlog::spdlog ${OS_RELATED_LIBS})
 target_include_directories(MachiUi PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 message("${CMAKE_CURRENT_SOURCE_DIR}/Source")
 # add_executable(test WIN32 examples/main.cpp)
-add_executable(test2 WIN32 examples/main_windowmanager.cpp)
+
+
+if(WIN32)
+    add_executable(test2 WIN32 examples/main_windowmanager.cpp)
+    message("이곳은 윈도우 환경입니다.")
+elseif(APPLE)
+    add_executable(test2 examples/main_windowmanager.cpp)
+elseif(UNIX)
+    message("이곳은 리눅스 또는 기타 유닉스 환경입니다.")
+endif()
+
 # target_link_libraries(test PRIVATE MachiUi)
 target_link_libraries(test2 PRIVATE MachiUi)
 # set_target_properties(test PROPERTIES LINK_FLAGS "/SUBSYSTEM:CONSOLE")
