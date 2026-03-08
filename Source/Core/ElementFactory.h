@@ -4,25 +4,30 @@
 #include <memory>
 #include <unordered_map>
 #include "Element.h"
-#include "IComponent.h"
+#include "IService.h"
+
+class LogManager;
+class ILogger;
+
 using ElementCreatorFunc = std::function<std::unique_ptr<Element>(uint64_t uid)>;
 
 // @brief ElementFactory is responsible for creating Element instances
 // based on type strings. It maintains a registry of type strings to creator functions,
 // allowing for flexible and extensible element creation.
-class ElementFactory : public IComponent
+class ElementFactory : public IService
 {
 
 private:
     std::unordered_map<std::string, ElementCreatorFunc> registry;
+    LogManager *logManager = nullptr;
+    ILogger *logger = nullptr;
 
 public:
     ElementFactory();
     ~ElementFactory();
 
     // IComponent interface implementation
-    virtual void OnInit(UiEngine *engine) override;
-    virtual void OnUpdate() override;
+    virtual void onInit(UiEngine *engine) override;
 
     void registerElementType(const std::string &type, ElementCreatorFunc creator);
     std::unique_ptr<Element> create(const std::string &type, uint64_t uid);

@@ -2,7 +2,7 @@
 #include "LogManager.h"
 #include "DefaultLogger.h"
 
-void LogManager::OnInit(UiEngine *engine)
+void LogManager::onInit(UiEngine *engine)
 {
 
 #ifdef STANDALONE_MODE
@@ -13,10 +13,6 @@ void LogManager::OnInit(UiEngine *engine)
 #endif
 }
 
-void LogManager::OnUpdate()
-{
-    // do nothing
-}
 
 void LogManager::setCustomLogger(ILogger *logger)
 {
@@ -34,4 +30,4 @@ ILogger *LogManager::getLogger()
     return this->defaultLogger;
 }
 
-REGISTER_UI_COMPONENT(LogManager, ComponentPhase::System);
+REGISTER_UI_COMPONENT(LogManager, ServicePhase::System);

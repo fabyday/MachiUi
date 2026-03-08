@@ -4,6 +4,16 @@
 #include <string>
 #include "IFormatter.h"
 
+// MacroFunction
+#ifdef _DEBUG
+#define MACHI_LOG_DEBUG(logger, format, ...) logger->LogDebug("[File : {} Line : {}]" format, __FILE__, __LINE__, ##__VA_ARGS__);
+#else
+#define MACHI_LOG_DEBUG(logger, format, ...) ((void)0) // do nothing...
+#endif
+
+#define MACHI_LOG_INFO(logger, format, ...) \
+    logger->LogInfo("[File : {} Line : {}]" format, __FILE__, __LINE__, ##__VA_ARGS__);
+
 enum class Level
 {
     INFO,

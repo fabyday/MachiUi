@@ -1,6 +1,6 @@
 
 
-#include <MinimalPlatform/WindowManager.h>
+#include <MinimalPlatform/UniversalWindow.h>
 #include <iostream>
 #include <string>
 #include <Core/UiEngine.h>
@@ -13,9 +13,9 @@ int main()
     UiEngine engine;
     engine.Init();
     std::cout << "Initializing UI Engine..." << std::endl;
-    auto *script = engine.GetComponent<ScriptManager>();
+    auto *script = engine.GetService<ScriptManager>();
 
-    auto *logMng = engine.GetComponent<LogManager>();
+    auto *logMng = engine.GetService<LogManager>();
     auto logger = logMng->getLogger();
     logger->setLevel(Level::DEBUG);
     logger->Log(Level::INFO, "test log");
@@ -34,8 +34,8 @@ int main()
         // script->ExecuteModule("assets/main.js");
         script->Execute(test);
     }
-    // engine.Init();
-    // engine.Run();
+    engine.Run();
+    engine.finalize();
     // WindowManager wm;
     // wm.createWindow("Test Window", 800, 600);
     // wm.launch();

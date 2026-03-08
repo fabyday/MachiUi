@@ -8,6 +8,8 @@ public:
     virtual bool Init(const std::string &title, uint32_t width, uint32_t height) = 0;
     virtual void Update() = 0; // OS 메시지 처리 (PollEvents)
     virtual void Close() = 0;
+    virtual void Show() = 0;
+    virtual void Hide() = 0;
     virtual bool ShouldClose() const = 0;
 
     // // --- 창 상태 정보 ---
@@ -22,5 +24,4 @@ public:
     // // --- 창 속성 조절 ---
     // virtual void SetTitle(const std::string &title) = 0;
     // virtual void SetVisible(bool visible) = 0;
-
 };

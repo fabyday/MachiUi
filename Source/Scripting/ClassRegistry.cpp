@@ -19,8 +19,10 @@ JSClassID ClassRegistry::getOrCreateClassID(JSContext *ctx, const char *name)
     };
     // Register the class with the runtime
     JS_NewClass(JS_GetRuntime(ctx), newId, &classDef);
+    JSValue proto = JS_NewObject(ctx);
+    JS_SetClassProto(ctx, newId, proto);
     // Store the class info in the registry
-    registry[name] = {newId, JS_UNDEFINED};
+    registry[name] = {newId, proto};
 
     return newId;
 }

@@ -3,14 +3,14 @@
 #include <memory>
 #include "Element.h"
 #include "SceneGraph.h"
-#include "IComponent.h"
+#include "IService.h"
 #include "ElementFactory.h"
 
 class LogManager;
 
 
 
-class SceneManager : public IComponent
+class SceneManager : public IService
 {
 
     // manager dependency
@@ -38,8 +38,7 @@ public:
     ~SceneManager();
 
     // IComponent interface implementation
-    virtual void OnInit(UiEngine *engine) override;
-    virtual void OnUpdate() override;
+    virtual void onInit(UiEngine *engine) override;
 
     // Scene Graph management(create, destroy, get)
     uint64_t createSceneGraph(const std::string &sceneName);
@@ -52,6 +51,7 @@ public:
     // Element management(create, destroy, get)
     Element *createElement(const std::string &type);
     void destroyElement(const uint64_t Id);
+    void AppendElement(const uint64_t parentId, const uint64_t childId);
     void destroyAllChildren(const uint64_t Id);
     Element *getElement(const uint64_t Id);
 

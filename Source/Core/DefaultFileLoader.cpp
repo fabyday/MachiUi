@@ -20,7 +20,7 @@ std::optional<std::string> DefaultFileLoader::readFile(const std::string &path)
     return buffer.str();
 };
 
-void DefaultFileLoader::OnInit(UiEngine *engine) {
+void DefaultFileLoader::onInit(UiEngine *engine) {
 
 };
 
@@ -44,7 +44,5 @@ std::optional<std::string> DefaultFileLoader::resolvePath(const std::string &ref
     }
 }
 
-// TODO
-void DefaultFileLoader::OnUpdate() {}
 
-REGISTER_UI_COMPONENT(DefaultFileLoader, ComponentPhase::System);
+REGISTER_UI_COMPONENT(DefaultFileLoader, ServicePhase::System);

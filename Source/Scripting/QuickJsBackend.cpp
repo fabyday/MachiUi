@@ -241,6 +241,7 @@ static JSValue js_create_element(JSContext *ctx, JSValueConst this_val,
                                  int argc, JSValueConst *argv)
 {
     ScriptManager *sm = static_cast<ScriptManager *>(JS_GetContextOpaque(ctx));
+
     // 2. 만약의 상황을 대비한 안전장치
     if (!sm || !sm->getSceneManager())
     {
@@ -251,8 +252,7 @@ static JSValue js_create_element(JSContext *ctx, JSValueConst this_val,
     ILogger *logger = logManager->getLogger();
 
     const char *type = JS_ToCString(ctx, argv[0]);
-    JSClassID classId = ClassRegistry::getOrCreateClassID(ctx, type);
-    JSValue object = JS_NewObjectClass(ctx, classId);
+    MACHI_LOG_DEBUG(logger, "[{} : {}]", "create ", type);
 
     Element *elementPtr = sm->getSceneManager()->createElement(type);
     if (!elementPtr)
@@ -261,11 +261,11 @@ static JSValue js_create_element(JSContext *ctx, JSValueConst this_val,
         JS_FreeCString(ctx, type);
         return JS_EXCEPTION; // 요소 생성 실패 시 예외 처리
     }
-    JS_SetOpaque(object, elementPtr);
-    logger->LogDebug("[JS Native] Create Element of type: {} with ID: {}", type, elementPtr->getId());
 
+    logger->LogDebug("[JS Native] Create Element of type: {} with ID: {}", type, elementPtr->getId());
+    JSValue result = JS_NewBigUint64(ctx, elementPtr->getUid());
     JS_FreeCString(ctx, type);
-    return object;
+    return result;
 }
 ////////////////////////////////////////////////////////////////////////////
 // C++ Native Functions for quickJS
@@ -332,16 +332,12 @@ static JSValue js_append_child(JSContext *ctx, JSValueConst this_val,
         return JS_EXCEPTION;
     }
     SceneManager *sceneManager = sm->getSceneManager();
-    Element *parent = sceneManager->getElement(parentId);
-    Element *child = sceneManager->getElement(childId);
-
-    if (!parent && !child)
+    if (parentId == 0 && childId == 0)
     {
         return JS_ThrowInternalError(ctx, "Element not found. ID Might be invalid");
     }
-    parent->appendChild(child);
-    // GlobalPool에서 두 객체를 찾아 트리로 연결
-    // 만약 parent가 특정 Scene에 속해있다면, 자연스럽게 child도 그 Scene의 렌더링 대상이 됨
+
+    sceneManager->AppendElement(parentId, childId);
 
     return JS_UNDEFINED;
 }
@@ -467,21 +463,21 @@ static JSValue js_destroy_element(JSContext *ctx, JSValueConst this_val, int arg
 // Binding Default Elements (Root, Text, Image, etc.)
 void register_default_elements(JSContext *ctx)
 {
-    GenericBinder({
-                      "Element",
-                      element_funcs,
-                      sizeof(element_funcs) / sizeof(JSCFunctionListEntry),
-                      nullptr // 부모 클래스 없음
-                  })
-        .Bind(ctx);
+    // GenericBinder({
+    //                   "Element",
+    //                   element_funcs,
+    //                   sizeof(element_funcs) / sizeof(JSCFunctionListEntry),
+    //                   nullptr // 부모 클래스 없음
+    //               })
+    //     .Bind(ctx);
 
-    GenericBinder({
-                      "Root",
-                      root_funcs,
-                      sizeof(root_funcs) / sizeof(JSCFunctionListEntry),
-                      "Element" // Root는 Element를 상속
-                  })
-        .Bind(ctx);
+    // GenericBinder({
+    //                   "Root",
+    //                   root_funcs,
+    //                   sizeof(root_funcs) / sizeof(JSCFunctionListEntry),
+    //                   "Element" // Root는 Element를 상속
+    //               })
+    //     .Bind(ctx);
 }
 
 // 네이티브 메서드 등록 함수

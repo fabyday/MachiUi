@@ -6,6 +6,7 @@ set(BUILD_TEST ON)
 
 
 option(STANDALONE_MODE "stasndalone embeded" TRUE)
+option(DEFAULT_LOGGER "stasndalone embeded" TRUE)
 
 set(OS_RELATED_LIBS "")
 if(MSVC)
@@ -15,58 +16,46 @@ else()
 
 
 endif()
-
+include("./cmakes/helper.cmake")
+# DEPS
 add_subdirectory(ThirdParty/yoga/yoga)
 add_subdirectory(ThirdParty/quickjs)
-add_subdirectory(ThirdParty/spdlog)
-
-file(GLOB_RECURSE MachiUi_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/Source/**/*.h)
-file(GLOB_RECURSE MachiUi_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/Source/**/*.cpp)
-if(WIN32)
-    message("이곳은 윈도우 환경입니다.")
-elseif(APPLE)
-message("APPLE")
-set(OS_RELATED_LIBS "-framework AppKit" "-framework Metal" "-framework QuartzCore")
-elseif(UNIX)
-    message("이곳은 리눅스 또는 기타 유닉스 환경입니다.")
+if(${DEFAULT_LOGGER})
+    add_subdirectory(ThirdParty/spdlog)
 endif()
-message("test232")
-    
-message(STATUS "Current OS_RELATED_LIBS: ${OS_RELATED_LIBS}")
-message("${OS_RELATED_LIBS}")
-add_library(MachiUi STATIC ${MachiUi_SOURCES} ${MachiUi_HEADERS})
-target_link_options(MachiUi INTERFACE /WHOLEARCHIVE:$<TARGET_FILE:MachiUi>)
 
-target_link_libraries(MachiUi PRIVATE qjs yogacore spdlog::spdlog ${OS_RELATED_LIBS})
-target_include_directories(MachiUi PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Source)
-message("${CMAKE_CURRENT_SOURCE_DIR}/Source")
+if(WIN32)
+message("Platform : Windows")
+elseif(APPLE)
+    message("Platform : Apple")
+    set(OS_RELATED_LIBS "-framework AppKit" "-framework Metal" "-framework QuartzCore")
+elseif(UNIX)
+message("Platform : Linux-UnixLike")
+endif()
+
+add_subdirectory(Source)
+
 # add_executable(test WIN32 examples/main.cpp)
 
 
-if(WIN32)
-    add_executable(test2 WIN32 examples/main_windowmanager.cpp)
-    message("이곳은 윈도우 환경입니다.")
-elseif(APPLE)
-    add_executable(test2 examples/main_windowmanager.cpp)
-elseif(UNIX)
-    message("이곳은 리눅스 또는 기타 유닉스 환경입니다.")
-endif()
 
 # target_link_libraries(test PRIVATE MachiUi)
-target_link_libraries(test2 PRIVATE MachiUi)
 # set_target_properties(test PROPERTIES LINK_FLAGS "/SUBSYSTEM:CONSOLE")
-set_target_properties(test2 PROPERTIES LINK_FLAGS "/SUBSYSTEM:CONSOLE")
 # set_target_properties(test2 PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
+
+add_machiUi_execuable(test2 "examples/main_windowmanager.cpp")
+set_target_properties(test2 PROPERTIES LINK_FLAGS "/SUBSYSTEM:CONSOLE")
+
+
 
 
 set(SOURCE_ASSETS "${CMAKE_CURRENT_SOURCE_DIR}/assets")
 set(DEST_ASSETS "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets")
 
-# 만약 디렉토리 출력을 따로 지정 안 했다면 보통 이 경로입니다.
 if(NOT CMAKE_RUNTIME_OUTPUT_DIRECTORY)
     set(DEST_ASSETS "${CMAKE_CURRENT_BINARY_DIR}/assets")
 endif()
-
+moveAssetToTargetDir(test2 "assets" ${SOURCE_ASSETS})
 # 2. 빌드 후 이벤트로 심볼릭 링크(또는 정션) 생성
 add_custom_command(TARGET test2 POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E echo "Target directory: $<TARGET_FILE_DIR:test2>"
@@ -91,7 +80,7 @@ add_custom_command(TARGET test2 POST_BUILD
 
 
 if(BUILD_TEST)
-message("build test...")
+    message("build test...")
     add_subdirectory(Test)
 endif()
 

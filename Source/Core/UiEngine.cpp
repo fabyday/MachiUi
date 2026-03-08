@@ -1,16 +1,16 @@
 #include "UiEngine.h"
 #include "Core/ComponentRegistry.h"
-
+#include "Core/DefaultTimer.h"
 void UiEngine::_bootstrapComponent()
 {
     // ComponentRegistry에서 등록된 모든 컴포넌트의 팩토리를 실행하여 객체를 생성합니다.
-    auto &registry = ComponentRegistry::Instance();
+    auto &registry = ServiceRegistry::Instance();
 
     // 1. 등록된 모든 단계(System, Logic, Render)를 순서대로 순회
-    ComponentPhase phases[] = {
-        ComponentPhase::System,
-        ComponentPhase::Logic,
-        ComponentPhase::Render};
+    ServicePhase phases[] = {
+        ServicePhase::System,
+        ServicePhase::Logic,
+        ServicePhase::Render};
 
     for (auto phase : phases)
     {
@@ -34,31 +34,51 @@ void UiEngine::_initializeComponents()
     // 현재 구조에서는 별도의 초기화 단계가 필요하지 않을 수 있지만, 확장성을 위해 메서드를 분리해두었습니다.
     for (auto &component : m_components)
     {
-        component->OnInit(this);
+        component->onInit(this);
     }
 }
 
-UiEngine::UiEngine() {}
+UiEngine::UiEngine() : engineInitFlag(false) {}
 UiEngine::~UiEngine() {}
 
 void UiEngine::Init()
 {
+    if (engineInitFlag)
+    {
+        // engine was aready initialized.
+        return;
+    }
     // 1. 컴포넌트 객체 생성
     _bootstrapComponent();
-
     // 2. 컴포넌트 초기화 (의존성 주입 포함)
     _initializeComponents();
+    engineInitFlag = true;
 }
 
+void UiEngine::finalize()
+{
+}
+
+void UiEngine::_updateLayout()
+{
+}
+
+void UiEngine::update(double deltaTime)
+{
+    
+    this->_updateLayout();
+}
+
+// StandAlone Mode
 void UiEngine::Run()
 {
     // 실제로는 여기에 윈도우 메시지 루프나 종료 조건이 들어갑니다.
     bool running = true;
+    DefaultTimer *timer = this->GetService<DefaultTimer>();
     while (running)
     {
-        for (auto &component : m_components)
-        {
-            component->OnUpdate();
-        }
+        // upate timer tick
+        timer->tick();
+        this->update(timer->getDeltaTime());
     }
 }

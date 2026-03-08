@@ -2,6 +2,7 @@
 #include <string>
 #include <unordered_map>
 #include <yoga/Yoga.h>
+
 #include <memory>
 #include <variant>
 #include <vector>
@@ -41,6 +42,11 @@ private:
 public:
     Element(uint64_t uid);
     virtual ~Element();
+
+    uint64_t getUid()
+    {
+        return this->uid;
+    }
 
     void setId(const std::string &id)
     {

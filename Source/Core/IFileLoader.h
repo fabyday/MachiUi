@@ -1,9 +1,9 @@
 #pragma once
 #include <optional>
 #include <string>
-#include "IComponent.h"
+#include "IService.h"
 
-class IFIleLoader : public IComponent
+class IFIleLoader : public IService
 {
 
 public:

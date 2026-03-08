@@ -17,7 +17,7 @@ struct ScriptExecutionContext
 };
 class LogManager;
 class UiEngine;
-class ScriptManager : public IComponent
+class ScriptManager : public IService
 {
 
     LogManager *logManager = nullptr;
@@ -29,9 +29,15 @@ public:
     void ReloadScripts();
     void Update();
     void Init();
+
+    // code execution method
     void Execute(const std::string &code);
     void ExecuteFile(const std::string &path);
     void ExecuteModule(const std::string &modulePath);
+
+    // pendingjob  onUpdate
+    void ProcessPendingTasks(double timeBudget);
+    void ExecuteFrameUpdate(float dt);
 
     // RAII Style ScirptExecutionContext Guard
     struct ContextGuard
@@ -56,9 +62,7 @@ public:
     ScriptExecutionContext *getActiveContext();
 
     // 엔진이 초기화될 때 호출 (여기서 다른 컴포넌트를 찾거나 초기 설정을 합니다)
-    virtual void OnInit(UiEngine *engine) override;
-    // 매 프레임 호출
-    virtual void OnUpdate() override;
+    virtual void onInit(UiEngine *engine) override;
 
     IFIleLoader *GetFileLoader() { return m_fileLoader; }
     SceneManager *getSceneManager() { return m_sceneManager; }

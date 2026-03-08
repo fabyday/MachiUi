@@ -33,22 +33,31 @@ void ScriptManager::Update()
 {
 }
 
-void ScriptManager::OnInit(UiEngine *engine)
+void ScriptManager::onInit(UiEngine *engine)
 {
     this->m_engine = engine;
 
-    this->m_fileLoader = engine->GetComponent<IFIleLoader>();
+    this->m_fileLoader = engine->GetService<IFIleLoader>();
 
     if (!this->m_fileLoader)
     {
         std::cerr << "[ScriptManager] Critical: IFileLoader not found!" << std::endl;
     }
 
-    this->m_sceneManager = engine->GetComponent<SceneManager>();
-    this->logManager = engine->GetComponent<LogManager>();
+    this->m_sceneManager = engine->GetService<SceneManager>();
+    this->logManager = engine->GetService<LogManager>();
 }
 
-void ScriptManager::OnUpdate()
+// void ScriptManager::OnUpdate()
+// {
+//     this->ProcessPendingTasks(16);
+//     this->ExecuteFrameUpdate(0.1);
+// }
+
+void ScriptManager::ProcessPendingTasks(double delta)
+{
+}
+void ScriptManager::ExecuteFrameUpdate(float dt)
 {
 }
 
@@ -106,4 +115,4 @@ ScriptExecutionContext *ScriptManager::createOrGetExecutionContext(const std::st
     return nullptr;
 }
 
-REGISTER_UI_COMPONENT(ScriptManager, ComponentPhase::Logic);
+REGISTER_UI_COMPONENT(ScriptManager, ServicePhase::Logic);

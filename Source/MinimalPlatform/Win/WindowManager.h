@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../Core/IWindow.h"
+#include "../../Core/IWindow.h"
 #include <memory>
 
 class WindowManager

@@ -12,15 +12,12 @@ SceneManager::~SceneManager()
 {
 }
 
-void SceneManager::OnInit(UiEngine *engine)
+void SceneManager::onInit(UiEngine *engine)
 {
-    this->elementFactory = engine->GetComponent<ElementFactory>();
-    this->logManager = engine->GetComponent<LogManager>();
+    this->elementFactory = engine->GetService<ElementFactory>();
+    this->logManager = engine->GetService<LogManager>();
 }
 
-void SceneManager::OnUpdate()
-{
-}
 
 uint64_t SceneManager::generateElementId()
 {
@@ -113,6 +110,22 @@ Element *SceneManager::getElement(const uint64_t Id)
     return nullptr; // 요소가 존재하지 않을 때 nullptr 반환
 }
 
+void SceneManager::AppendElement(const uint64_t parentId, const uint64_t childId)
+{
+    Element *parent = this->getElement(parentId);
+    Element *child = this->getElement(childId);
+    parent->appendChild(child);
+    // parent->getSceneGraph();
+
+    // this->getSceneGraph();
+
+    // TODO Check SceneGraph is Valid.
+    // if(valid_scene)
+    {
+        this->dirtyElementLists.push_back(parentId);
+    }
+}
+
 void SceneManager::destroyAllChildren(const uint64_t Id)
 {
     // TODO: 구현 필요
@@ -149,7 +162,6 @@ bool SceneManager::isMounted(uint64_t elementId)
 {
     auto elem = this->getElement(elementId);
     return true;
-    
 }
 
-REGISTER_UI_COMPONENT(SceneManager, ComponentPhase::System);
+REGISTER_UI_COMPONENT(SceneManager, ServicePhase::System);
