@@ -1,3 +1,4 @@
-#include <Window.h>
+#pragma once
 
-void createWindow();
+#include "../../Core/IWindow.h"
+IWindow* createWindow();

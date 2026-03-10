@@ -49,10 +49,19 @@ void UiEngine::Init()
         return;
     }
     // 1. 컴포넌트 객체 생성
-    _bootstrapComponent();
+    this->_bootstrapComponent();
     // 2. 컴포넌트 초기화 (의존성 주입 포함)
-    _initializeComponents();
+    this->_initializeComponents();
+
+
+    this->setupFundamentalServices();
     engineInitFlag = true;
+}
+
+void UiEngine::setupFundamentalServices()
+{
+    this->windowHost = this->GetService<IWindowHost>();
+    this->timer = this->GetService<ITimer>();
 }
 
 void UiEngine::finalize()
@@ -65,7 +74,7 @@ void UiEngine::_updateLayout()
 
 void UiEngine::update(double deltaTime)
 {
-    
+
     this->_updateLayout();
 }
 
@@ -74,11 +83,12 @@ void UiEngine::Run()
 {
     // 실제로는 여기에 윈도우 메시지 루프나 종료 조건이 들어갑니다.
     bool running = true;
-    DefaultTimer *timer = this->GetService<DefaultTimer>();
+    IWindow* win = this->windowHost->requestWindow();
+    
     while (running)
     {
         // upate timer tick
-        timer->tick();
-        this->update(timer->getDeltaTime());
+        this->timer->tick();
+        this->update(this->timer->getDeltaTime());
     }
 }

@@ -15,6 +15,6 @@ public:
     void onInit(UiEngine *engine) override;
 
     // IWindowHost interface implementation
-    IWindow *requestWindow() override;
+    IWindow *requestWindow() override ;
 
 };

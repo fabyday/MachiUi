@@ -18,8 +18,7 @@ void Win32WindowHost::onInit(UiEngine *engine)
 // For Standalone Mode
 IWindow *Win32WindowHost::requestWindow()
 {
-    createWindow();
-    return nullptr;
+    return createWindow();
 }
 
 REGISTER_UI_COMPONENT(Win32WindowHost, ServicePhase::System);

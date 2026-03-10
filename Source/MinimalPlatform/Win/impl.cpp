@@ -3,7 +3,7 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <windows.h>
+#include <Windows.h>
 #include "../../Core/IWindow.h"
 #ifdef ERROR
 #undef ERROR
@@ -23,6 +23,8 @@ public:
     bool Init(const std::string &title, uint32_t width, uint32_t height) override;
     void Update() override;
     void Close() override;
+    void Show() override;
+    void Hide() override;   
     bool ShouldClose() const override;
 
 private:
@@ -38,10 +40,18 @@ Win32Window::~Win32Window()
     Close();
 }
 
+void Win32Window::Show(){
+    ShowWindow(hwnd, SW_SHOWDEFAULT);
+}
+void Win32Window::Hide(){
+    ShowWindow(hwnd, SW_HIDE);
+}
+
 bool Win32Window::Init(const std::string &title, uint32_t width, uint32_t height)
 {
     width = width;
     height = height;
+    return true;
 }
 void Win32Window::Update()
 {
@@ -85,11 +95,17 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM l
 {
     switch (message)
     {
-    case WM_DESTROY:
-        Window *targetWindow = reinterpret_cast<Window *>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+    case WM_DESTROY:{
+
+        IWindow *targetWindow = reinterpret_cast<IWindow *>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+        if (targetWindow)
+        {
+            targetWindow->Close();
+        }
         PostQuitMessage(0);
         return 0;
+    }
     default:
-        return DefWindowProc(hWnd, message, wParam, lParam);
+        return DefWindowProc(hwnd, message, wParam, lParam);
     }
 }
