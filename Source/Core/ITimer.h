@@ -5,7 +5,7 @@ class ITimer : public IService
 {
 
 public:
-    virtual ~ITimer() = 0;
+    virtual ~ITimer() = default;
 
     virtual void onInit(UiEngine *engine) = 0;
     // 일시정지 제어

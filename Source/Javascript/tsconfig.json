@@ -11,5 +11,10 @@
       "*": ["../Source/javascript/*"]
     }
   },
+  "ts-node": {
+    "compilerOptions": {
+      "module": "commonjs"
+    }
+  },
   "include": ["./webpack.config.ts", "../Source/javascript/**/*"]
 }

@@ -6,5 +6,6 @@
 class IWindowHost : public IService
 {
 public:
-    virtual IWindow *requestWindow();
+    virtual ~IWindowHost() = default;
+    virtual IWindow *requestWindow() = 0;
 };

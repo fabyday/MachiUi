@@ -1,6 +1,6 @@
 @echo off
 setlocal
-
-
-cd ./Source/JavaScript
-pnpm %*
+cd /d "%~dp0Source\JavaScript"
+echo Target Directory: %CD%
+call pnpm %*
+endlocal

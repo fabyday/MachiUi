@@ -8,6 +8,7 @@ Win32WindowHost::Win32WindowHost()
 
 Win32WindowHost::~Win32WindowHost()
 {
+    
 }
 
 // IService interface implementation
