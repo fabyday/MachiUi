@@ -2,6 +2,8 @@
 #include <vector>
 #include <memory>
 #include "IService.h"
+#include "IWindowHost.h"
+#include "ITimer.h"
 class UiEngine
 {
 private:
@@ -13,6 +15,8 @@ protected:
     // call onInit for all components, this is where dependency injection happens
     void _initializeComponents();
 
+
+    void setupFundamentalServices();
 
     //
     void _updateLayout();
@@ -55,4 +59,6 @@ public:
 private:
     // 실제로 생성된 부품들을 관리하는 바구니
     std::vector<std::unique_ptr<IService>> m_components;
+    IWindowHost * windowHost;
+    ITimer* timer;
 };

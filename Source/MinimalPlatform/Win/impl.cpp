@@ -3,7 +3,7 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <windows.h>
+#include <Windows.h>
 #include "../../Core/IWindow.h"
 #ifdef ERROR
 #undef ERROR
@@ -23,14 +23,20 @@ public:
     bool Init(const std::string &title, uint32_t width, uint32_t height) override;
     void Update() override;
     void Close() override;
+    void Show() override;
+    void Hide() override;   
     bool ShouldClose() const override;
+
+    void setHWND(HWND hwnd);
+    HWND getHWND();
 
 private:
     HWND hwnd; // Win32 창 핸들
 };
 
-Win32Window::Win32Window() : hwnd(nullptr)
+Win32Window::Win32Window( ) : hwnd(nullptr)
 {
+
 }
 
 Win32Window::~Win32Window()
@@ -38,10 +44,26 @@ Win32Window::~Win32Window()
     Close();
 }
 
+void Win32Window::Show(){
+    ShowWindow(hwnd, SW_SHOWDEFAULT);
+}
+void Win32Window::Hide(){
+    ShowWindow(hwnd, SW_HIDE);
+}
+
 bool Win32Window::Init(const std::string &title, uint32_t width, uint32_t height)
 {
     width = width;
     height = height;
+    return true;
+}
+void Win32Window::setHWND(HWND hwnd)
+{
+    this->hwnd = hwnd;
+}
+HWND Win32Window::getHWND()
+{
+    return hwnd;
 }
 void Win32Window::Update()
 {
@@ -51,14 +73,16 @@ void Win32Window::Close()
 }
 bool Win32Window::ShouldClose() const
 {
+
     return false;
 }
 
 static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-IWindow *create_window(const char *title, int width, int height)
+IWindow *createWindow()
 {
-    IWindow *win = new Win32Window();
+    Win32Window *win = new Win32Window();
+
     // 1. 창 클래스 등록 (한 번만 하면 되지만, 보통 헬퍼가 관리)
     WNDCLASSEXW wc = {sizeof(WNDCLASSEXW), CS_CLASSDC, WndProc, 0L, 0L,
                       GetModuleHandle(NULL), NULL, NULL, NULL, NULL,
@@ -66,9 +90,10 @@ IWindow *create_window(const char *title, int width, int height)
     RegisterClassExW(&wc);
 
     // 2. 창 생성 (this를 마지막 인자로 넘겨 WndProc에서 낚아챕니다)
-    HWND hwnd = CreateWindowExW(0, L"MachiWinClass", L"Editor Window",
-                                WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, width, height,
+    HWND hwnd = CreateWindowExW(0, L"MachiWinClass", nullptr,
+                                WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
                                 NULL, NULL, GetModuleHandle(NULL), win);
+    win->setHWND(hwnd);
 
     if (!hwnd)
     {
@@ -85,11 +110,17 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM l
 {
     switch (message)
     {
-    case WM_DESTROY:
-        Window *targetWindow = reinterpret_cast<Window *>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+    case WM_DESTROY:{
+
+        IWindow *targetWindow = reinterpret_cast<IWindow *>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+        if (targetWindow)
+        {
+            targetWindow->Close();
+        }
         PostQuitMessage(0);
         return 0;
+    }
     default:
-        return DefWindowProc(hWnd, message, wParam, lParam);
+        return DefWindowProc(hwnd, message, wParam, lParam);
     }
 }

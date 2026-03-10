@@ -5,6 +5,7 @@
 #include "Viewport.h"
 class IWindowHost : public IService
 {
-
-    IWindow *requestWindow();
+public:
+    virtual ~IWindowHost() = default;
+    virtual IWindow *requestWindow() = 0;
 };
