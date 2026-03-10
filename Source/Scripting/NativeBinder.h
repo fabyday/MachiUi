@@ -1,5 +1,6 @@
 
 struct JSCFunctionListEntry;
+#include <cstddef>
 
 class NativeBinder
 {

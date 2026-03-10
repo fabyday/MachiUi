@@ -4,11 +4,11 @@
     "module": "ESNext",
     "moduleResolution": "node" /* 필수: 노드 방식의 모듈 해석 */,
     "esModuleInterop": true /* 필수: CommonJS와 ESM 혼용 가능케 함 */,
-    "types": ["node"] /* 필수: @types/node를 전역으로 불러옴 */,
+    // "types": ["node"] /* 필수: @types/node를 전역으로 불러옴 */,
     "allowSyntheticDefaultImports": true,
     "baseUrl": ".",
     "paths": {
-      "*": ["../Source/javascript/*"]
+      "*": ["./*"]
     }
   },
   "ts-node": {
@@ -16,5 +16,8 @@
       "module": "commonjs"
     }
   },
-  "include": ["./webpack.config.ts", "../Source/javascript/**/*"]
+  "files": [
+    "./Native/native.d.ts" // Source/Source가 되지 않도록 경로 수정
+  ],
+  "include": ["./webpack.config.ts", "./Javascript/**/*"]
 }

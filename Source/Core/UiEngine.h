@@ -57,8 +57,8 @@ public:
     }
 
 private:
-    // 실제로 생성된 부품들을 관리하는 바구니
-    std::vector<std::unique_ptr<IService>> m_components;
+
+std::vector<std::unique_ptr<IService>> m_components;
     IWindowHost * windowHost;
     ITimer* timer;
 };

@@ -8,3 +8,4 @@ build/**
 
 # for mac setup 
 .DS_Store
+.cache/

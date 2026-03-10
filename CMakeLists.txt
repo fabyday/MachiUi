@@ -44,8 +44,9 @@ add_subdirectory(Source)
 # set_target_properties(test2 PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
 
 add_machiUi_execuable(test2 "examples/main_windowmanager.cpp")
+if(WIN32)
 set_target_properties(test2 PROPERTIES LINK_FLAGS "/SUBSYSTEM:CONSOLE")
-
+endif()
 
 
 

@@ -9,7 +9,7 @@ class OSXWindowHost : public IWindowHost{
     
 public:
     OSXWindowHost();
-    virtual ~OSXWindowHost();
+    virtual ~OSXWindowHost() override;
 
     // IService interface implementation
     void onInit(UiEngine *engine) override;

@@ -7,12 +7,16 @@ void OSXWindowHost::onInit(UiEngine *engine)
 
 
 }
-
+OSXWindowHost::OSXWindowHost()
+{
+}
+OSXWindowHost::~OSXWindowHost()
+{
+}
 
 IWindow* OSXWindowHost::requestWindow()
 {
-    return create_window();
-    return nullptr;
+    return createWindow();
 }
 
 REGISTER_UI_COMPONENT(OSXWindowHost, ServicePhase::System);

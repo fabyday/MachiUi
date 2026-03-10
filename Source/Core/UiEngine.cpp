@@ -1,6 +1,7 @@
 #include "UiEngine.h"
 #include "Core/ComponentRegistry.h"
 #include "Core/DefaultTimer.h"
+#include "Core/LogManager.h"
 void UiEngine::_bootstrapComponent()
 {
     // ComponentRegistry에서 등록된 모든 컴포넌트의 팩토리를 실행하여 객체를 생성합니다.
@@ -32,9 +33,11 @@ void UiEngine::_initializeComponents()
 {
     // 이미 _bootstrapComponent에서 OnInit이 호출되었으므로, 여기서는 추가 초기화가 필요한 컴포넌트가 있다면 처리할 수 있습니다.
     // 현재 구조에서는 별도의 초기화 단계가 필요하지 않을 수 있지만, 확장성을 위해 메서드를 분리해두었습니다.
+    this->GetService<LogManager>()->initialize(this);
+
     for (auto &component : m_components)
     {
-        component->onInit(this);
+        component->initialize(this);
     }
 }
 
@@ -60,6 +63,7 @@ void UiEngine::Init()
 
 void UiEngine::setupFundamentalServices()
 {
+
     this->windowHost = this->GetService<IWindowHost>();
     this->timer = this->GetService<ITimer>();
 }
@@ -84,11 +88,13 @@ void UiEngine::Run()
     // 실제로는 여기에 윈도우 메시지 루프나 종료 조건이 들어갑니다.
     bool running = true;
     IWindow* win = this->windowHost->requestWindow();
-    
+    win->Show();
     while (running)
     {
         // upate timer tick
         this->timer->tick();
+        win->Update();
+        // this->GetService<LogManager>()->getLogger()->LogDebug("ticktick");
         this->update(this->timer->getDeltaTime());
     }
 }
