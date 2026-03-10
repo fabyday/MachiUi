@@ -12,6 +12,10 @@ public:
     virtual void Hide() = 0;
     virtual bool ShouldClose() const = 0;
 
+
+    virtual void setBorderless(bool use) = 0;
+    virtual void setTitle(const std::string& title)=0;
+
     // // --- 창 상태 정보 ---
     // virtual uint32_t GetWidth() const = 0;
     // virtual uint32_t GetHeight() const = 0;
