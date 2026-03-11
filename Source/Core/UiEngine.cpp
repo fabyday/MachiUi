@@ -99,9 +99,11 @@ void UiEngine::Run()
     {
         // upate timer tick
         this->timer->tick();
+        
         win->Update();
         // this->GetService<LogManager>()->getLogger()->LogDebug("ticktick");
         this->update(this->timer->getDeltaTime());
+
         scheduler->processReservedTask();
     }
 }

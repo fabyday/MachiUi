@@ -16,6 +16,7 @@ OSXWindowHost::~OSXWindowHost()
         delete win;
     }
     windowLists.clear();
+    
 }
 
 IWindow* OSXWindowHost::requestWindow()
