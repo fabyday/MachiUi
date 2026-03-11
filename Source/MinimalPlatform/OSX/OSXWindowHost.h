@@ -1,12 +1,11 @@
 #pragma once
 #include "../../Core/IWindowHost.h"
-
+#include <vector>
 
 
 
 class OSXWindowHost : public IWindowHost{
-    void * opaque;
-    
+    std::vector<IWindow*> windowLists;
 public:
     OSXWindowHost();
     virtual ~OSXWindowHost() override;

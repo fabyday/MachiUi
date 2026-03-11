@@ -2,6 +2,7 @@
 #include "Core/ComponentRegistry.h"
 #include "Core/DefaultTimer.h"
 #include "Core/LogManager.h"
+#include "Core/TaskScheduler.h"
 void UiEngine::_bootstrapComponent()
 {
     // ComponentRegistry에서 등록된 모든 컴포넌트의 팩토리를 실행하여 객체를 생성합니다.
@@ -88,7 +89,12 @@ void UiEngine::Run()
     // 실제로는 여기에 윈도우 메시지 루프나 종료 조건이 들어갑니다.
     bool running = true;
     IWindow* win = this->windowHost->requestWindow();
+    TaskScheduler* scheduler = this->GetService<TaskScheduler>();
+
     win->Show();
+    win->setTitle("test");
+    win->setBorderless(true);
+    
     while (running)
     {
         // upate timer tick
@@ -96,5 +102,6 @@ void UiEngine::Run()
         win->Update();
         // this->GetService<LogManager>()->getLogger()->LogDebug("ticktick");
         this->update(this->timer->getDeltaTime());
+        scheduler->processReservedTask();
     }
 }

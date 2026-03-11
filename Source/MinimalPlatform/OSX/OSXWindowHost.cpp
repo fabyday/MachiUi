@@ -12,6 +12,10 @@ OSXWindowHost::OSXWindowHost()
 }
 OSXWindowHost::~OSXWindowHost()
 {
+    for(auto win : windowLists){
+        delete win;
+    }
+    windowLists.clear();
 }
 
 IWindow* OSXWindowHost::requestWindow()
