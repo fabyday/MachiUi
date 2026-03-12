@@ -1,19 +1,19 @@
 {
-  "compilerOptions": {
-    "target": "ES2020",
+"compilerOptions": {
+    "target": "ES2020", 
     "module": "ESNext",
-    "moduleResolution": "node" /* 필수: 노드 방식의 모듈 해석 */,
-    "esModuleInterop": true /* 필수: CommonJS와 ESM 혼용 가능케 함 */,
-    // "types": ["node"] /* 필수: @types/node를 전역으로 불러옴 */,
+    "jsx": "react", // 혹은 "react-jsx" (React 17+ 사용 시)
+    "moduleResolution": "node",
+    "lib": ["ES2020"], // DOM 관련 라이브러리(dom, dom.iterable)는 제거하세요. (QuickJS엔 document가 없음)
     "allowSyntheticDefaultImports": true,
-    "baseUrl": ".",
-    "paths": {
-      "*": ["./*"]
-    }
+    "esModuleInterop": true
   },
   "ts-node": {
+    "esm": true,
+    "experimentalSpecifiers": true,
+    "transpileOnly": true,
     "compilerOptions": {
-      "module": "commonjs"
+      "module": "ESNext" // webpack-cli 최신 버전은 ESM 설정을 지원합니다.
     }
   },
   "files": [

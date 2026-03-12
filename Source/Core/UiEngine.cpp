@@ -103,7 +103,7 @@ void UiEngine::Run()
         win->Update();
         // this->GetService<LogManager>()->getLogger()->LogDebug("ticktick");
         this->update(this->timer->getDeltaTime());
-
+            
         scheduler->processReservedTask();
     }
 }

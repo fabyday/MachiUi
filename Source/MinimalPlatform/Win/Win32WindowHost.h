@@ -1,9 +1,13 @@
 #pragma once
 #include "../../Core/IWindowHost.h"
+#include "../../Core/IWindow.h"
+#include <../../Core/TaskScheduler.h>
 
 class Win32WindowHost : public IWindowHost
 {
     void *opaque;
+    std::vector<IWindow*> winPool;
+    TaskScheduler* scheduler;
 
 public:
     Win32WindowHost();

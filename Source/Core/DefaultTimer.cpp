@@ -55,4 +55,9 @@ double DefaultTimer::getAbsoluteTime() const
     return elapsed.count();
 }
 
+uint64_t DefaultTimer::getTotalTimeMS()
+{
+    return 9;
+}
+
 REGISTER_UI_COMPONENT(DefaultTimer, ServicePhase::System);

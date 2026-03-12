@@ -27,12 +27,25 @@ public:
     void Hide() override;   
     bool ShouldClose() const override;
 
+
+    virtual void setBorderless(bool use) override;
+    virtual void setTitle(const std::string& title) override;
+
     void setHWND(HWND hwnd);
     HWND getHWND();
 
 private:
     HWND hwnd; // Win32 창 핸들
 };
+
+void Win32Window::setBorderless(bool use){
+
+}
+
+void Win32Window::setTitle(const std::string& title){
+    
+}
+
 
 Win32Window::Win32Window( ) : hwnd(nullptr)
 {
