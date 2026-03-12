@@ -22,7 +22,7 @@ void TaskScheduler::postDelayTask(uint64_t delay, std::function<void(void)> call
 {   
     
     uint64_t targetTime = this->timer->getTotalTimeMS() + delay;
-    this->taskQueue.insert({targetTime, callback});
+    // this->taskQueue.insert({targetTime, callback});
 }
 
 REGISTER_UI_COMPONENT(TaskScheduler, ServicePhase::Logic)

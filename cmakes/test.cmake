@@ -26,7 +26,7 @@
 function(addTest targetName sources )
     # sources may be a semicolon‑separated list; preserve it as-is.
     add_executable(${targetName} ${sources})
-
+    message("ADD TEST : ${targetName} ${sources}")
     # link with gtest and any additional libraries passed after the sources
     target_link_libraries(${targetName} PRIVATE GTest::gtest_main ${ARGN})
 
