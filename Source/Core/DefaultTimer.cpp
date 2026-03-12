@@ -32,6 +32,12 @@ void DefaultTimer::tick()
 {
     auto currentTime = Clock::now();
 
+    auto absoluteDiff = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - _startTime);
+    uint64_t newAbsoluteMS = absoluteDiff.count();
+
+    // 2. 프레임 간격(Delta) 계산
+    auto frameDiff = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - _lastTickTime);
+    uint64_t frameMS = frameDiff.count();
     if (_isPaused)
     {
         // 일시정지 중에는 시간 변화량이 0입니다.
@@ -40,9 +46,10 @@ void DefaultTimer::tick()
     else
     {
         // 현재 시간과 마지막 틱 시간의 차이를 초 단위로 계산
+        totalMS += frameMS;
         Second elapsed = currentTime - _lastTickTime;
-        _deltaTime = elapsed.count();
-        _totalActiveTime += _deltaTime;
+        _totalActiveTime = static_cast<double>(totalMS) / 1000.0;
+        _deltaTime = static_cast<double>(frameMS) / 1000.0;
     }
 
     _lastTickTime = currentTime;
