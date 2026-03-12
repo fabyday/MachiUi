@@ -57,7 +57,6 @@ void UiEngine::Init()
     // 2. 컴포넌트 초기화 (의존성 주입 포함)
     this->_initializeComponents();
 
-
     this->setupFundamentalServices();
     engineInitFlag = true;
 }
@@ -88,22 +87,22 @@ void UiEngine::Run()
 {
     // 실제로는 여기에 윈도우 메시지 루프나 종료 조건이 들어갑니다.
     bool running = true;
-    IWindow* win = this->windowHost->requestWindow();
-    TaskScheduler* scheduler = this->GetService<TaskScheduler>();
+    IWindow *win = this->windowHost->requestWindow();
+    TaskScheduler *scheduler = this->GetService<TaskScheduler>();
 
     win->Show();
     win->setTitle("test");
     win->setBorderless(true);
-    
+
     while (running)
     {
         // upate timer tick
         this->timer->tick();
-        
+
         win->Update();
         // this->GetService<LogManager>()->getLogger()->LogDebug("ticktick");
         this->update(this->timer->getDeltaTime());
-            
+        
         scheduler->processReservedTask();
     }
 }
