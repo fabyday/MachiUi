@@ -4,6 +4,8 @@
 
 
 
+
+
 ## 🌟 Key Features
 
 * **Native Performance**: Electron이나 브라우저 엔진 없이 그래픽스(DX12, OpenGL, etc) 파이프라인에서 직접 렌더링하여 최소한의 오버헤드를 보장합니다.
@@ -31,7 +33,12 @@
 * **Compiler**: MSVC (Visual Studio 2022+)
 * **Engine**: QuickJS(Runtime) & Yoga Engine(Layout Engine)
 
+
 ## 🔧 Technical Details
+
+
+엔진의 구성요소의 기본단위는 서비스(IService)를 상속한다.
+제공되는 기본 랜더러가 아닌 커스텀한 DX12/Opengl/Vulkan/Metal 랜더러를 쓰기 위해서는 사용자는 독자적인 IWindowHost를 구현해야한다.
 
 ### Modular Logging
 MachI-UI는 엔진 통합을 위해 **추상화된 로깅 레이어**를 제공합니다.
