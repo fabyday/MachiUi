@@ -7,5 +7,6 @@ build/**
 
 
 # for mac setup 
+Docs
 .DS_Store
 .cache/
