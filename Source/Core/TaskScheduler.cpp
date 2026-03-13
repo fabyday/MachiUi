@@ -21,7 +21,7 @@ void TaskScheduler::postPeriodicTask(uint64_t interval, uint64_t initialDelay, s
 void TaskScheduler::postDelayTask(uint64_t delay, std::function<void(void)> callback)
 {   
     
-    uint64_t targetTime = this->timer->getTotalTimeMS() + delay;
+    uint64_t targetTime = this->timer->getTotalTime() + delay;
     // this->taskQueue.insert({targetTime, callback});
 }
 

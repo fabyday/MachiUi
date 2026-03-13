@@ -11,9 +11,9 @@ private:
     double _deltaTime = 0.0;
     double _totalActiveTime = 0.0;
     uint64_t totalMS = 0;
-    
-    Clock::time_point _startTime;    // 엔진 시작 시점
-    Clock::time_point _lastTickTime; // 마지막 tick 호출 시점
+
+    Nanoseconds _startTime;    // 엔진 시작 시점
+    Nanoseconds _lastTickTime; // 마지막 tick 호출 시점
 
 public:
     DefaultTimer();
@@ -25,13 +25,16 @@ public:
     // ITimer interface
     virtual void setPaused(bool paused) override;
     virtual bool isPaused() const override { return _isPaused; }
-    
+
     virtual void tick() override;
 
+protected:
+    virtual Nanoseconds now() const;
+
+public:
     virtual double getDeltaTime() override { return _deltaTime; }
     virtual double getTotalActiveTime() const override { return _totalActiveTime; }
     virtual double getAbsoluteTime() const override;
 
-
-    virtual uint64_t getTotalTimeMS() override;
+    virtual uint64_t getTotalTime() override;
 };
