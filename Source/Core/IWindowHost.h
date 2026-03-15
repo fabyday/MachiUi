@@ -1,4 +1,4 @@
-
+#pragma once
 
 #include "IService.h"
 #include "IWindow.h"

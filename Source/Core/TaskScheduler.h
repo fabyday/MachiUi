@@ -9,7 +9,7 @@
 class TaskScheduler : public IService
 {
     std::multiset<std::function<void(void)>> taskQueue;
-    ITimer* timer;
+    ITimer *timer;
     struct Task
     {
         uint64_t execute_at;            // (current_time(absolute) + delay)

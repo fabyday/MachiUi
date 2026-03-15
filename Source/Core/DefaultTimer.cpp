@@ -40,11 +40,11 @@ void DefaultTimer::tick()
   else
   {
     auto deltaSec = frameDiff;
-    this->_deltaTime = deltaSec.count();
+    // this->_deltaTime = deltaSec.count();
 
-    this->_totalActiveTime +=
-        std::chrono::duration_cast<std::chrono::milliseconds>(frameDiff)
-            .count();
+    this->_totalActiveTime += deltaSec;
+    // std::chrono::duration_cast<std::chrono::milliseconds>(frameDiff)
+    //     .count();
   }
 
   _lastTickTime = currentTime;
@@ -61,7 +61,7 @@ double DefaultTimer::getAbsoluteTime() const
 {
   // 일시정지 여부와 상관없이 엔진 시작 후 실제 흐른 시간
   auto elapsed = this->now() - _startTime;
-  return elapsed.count();
+  return NsToMs(elapsed);
 }
 
 uint64_t DefaultTimer::getTotalTime() { return this->totalMS; }

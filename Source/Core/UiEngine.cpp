@@ -42,6 +42,17 @@ void UiEngine::_initializeComponents()
     }
 }
 
+/**
+ *
+ */
+void UiEngine::_initializePlatformDependantComponent()
+{
+}
+
+void UiEngine::_initializeIOComponent()
+{
+}
+
 UiEngine::UiEngine() : engineInitFlag(false) {}
 UiEngine::~UiEngine() {}
 
@@ -102,7 +113,7 @@ void UiEngine::Run()
         win->Update();
         // this->GetService<LogManager>()->getLogger()->LogDebug("ticktick");
         this->update(this->timer->getDeltaTime());
-        
+
         scheduler->processReservedTask();
     }
 }

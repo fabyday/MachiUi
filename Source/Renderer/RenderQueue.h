@@ -1,16 +1,16 @@
 #pragma once
 #include <vector>
 #include "RenderCommand.h"
-
+#include <variant>
 class RenderQueue
 {
 public:
-    void PushDrawRect(Rect bounds, Color color)
+    void recordCommand(ViewId id, Color color)
     {
-        m_commands.push_back({CommandType::DrawRect, bounds, color});
+        m_commands.push_back({CommandType::DrawRect, id, color});
     }
 
-    void Clear()
+    void clearCommands()
     {
         m_commands.clear();
     }

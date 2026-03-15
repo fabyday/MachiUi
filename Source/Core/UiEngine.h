@@ -14,7 +14,10 @@ protected:
     void _bootstrapComponent();
     // call onInit for all components, this is where dependency injection happens
     void _initializeComponents();
-
+    // initialized Renderer & platform
+    void _initializePlatformDependantComponent();
+    // init IO Component
+    void _initializeIOComponent();
 
     void setupFundamentalServices();
 

@@ -23,13 +23,14 @@
 # When multiple dependency libraries are needed simply separate them with
 # spaces.  They will be passed through to target_link_libraries.
 
-function(addTest targetName sources )
+function(addTest targetName sources engineObject)
     # sources may be a semicolon‑separated list; preserve it as-is.
     add_executable(${targetName} ${sources})
-    message("ADD TEST : ${targetName} ${sources}")
-    # link with gtest and any additional libraries passed after the sources
-    target_link_libraries(${targetName} PRIVATE GTest::gtest_main ${ARGN})
 
+    message("ADD TEST : ${targetName} ${sources} engine ${engineObject} args ${ARGN}")
+    # link with gtest and any additional libraries passed after the sources
+    target_link_libraries(${targetName} PRIVATE GTest::gtest_main ${engineObject} ${ARGN})
+    # target_link_libraries(${targetName} PRIVATE GTest::gtest_main ${ARGN})
     # ensure tests can #include <Core/...> etc. by pointing to project Source
     target_include_directories(${targetName} PRIVATE
         ${PROJECT_SOURCE_DIR}/Source

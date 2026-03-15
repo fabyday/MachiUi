@@ -53,7 +53,7 @@ protected:
      * @return * current time Nanoseconds
      *
      */
-    virtual Nanoseconds now() const;
+    virtual Nanoseconds now() const = 0;
 
 public:
     /**

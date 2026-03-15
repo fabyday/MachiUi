@@ -1,5 +1,8 @@
 #pragma once
-#include "../Core/Types.h"
+#include "Core/Types.h"
+#include <cstdint>
+#include <variant>
+
 enum class CommandType
 {
     DrawRect,
@@ -8,9 +11,29 @@ enum class CommandType
     PushLayer
 };
 
+typedef struct TextureId
+{
+    uint32_t id;
+} TextureId;
+
+typedef struct TextData
+{
+    const char *content;
+} TextData;
+
 struct RenderCommand
 {
     CommandType type;
-    Rect bounds;
-    Color color;
+    ViewId target;
+    std::variant<Color, TextureId, TextData> data;
+};
+
+// Vertex Packet Structure
+struct UiVertex
+{
+    float position[2];
+    float uv[2];
+    uint32_t color;
+    uint32_t mode;
+    uint32_t textureIndex;
 };

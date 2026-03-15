@@ -1,5 +1,7 @@
 #pragma once
 
+typedef void *MachiUiWindowHandle;
+
 struct Color
 {
     float r, g, b, a;
@@ -60,7 +62,6 @@ struct InputEvent
             float delta;
         } wheel;
     };
-
 };
 
 /// Input Event Type

@@ -1,7 +1,15 @@
 
 file(GLOB CoreSource "./Core/*.cpp")
 file(GLOB RendererSource "./Renderer/*.cpp")
+if(WIN32)
+    file(GLOB DX12Source "./Renderer/Backend/DX12/*.cpp")
+    list(APPEND RendererSource ${DX12Source})
+endif()
+message(STATUS "Final Renderer Sources: ${RendererSource}")
+
+
 file(GLOB ScriptingSource "./Scripting/*.cpp")
+
 
 set(PlatformDependentSource "")
 
@@ -20,9 +28,33 @@ else()
     set(Source ${CoreSource} ${RendererSource} ${ScriptingSource})
 endif()
 
-add_library(MachiUi STATIC ${Source})
 
-target_link_libraries(MachiUi PRIVATE qjs yogacore spdlog::spdlog ${OS_RELATED_LIBS})
+add_library(MachiUi_OBJECT_DEPS INTERFACE)
+target_include_directories(MachiUi_OBJECT_DEPS INTERFACE ${PROJECT_SOURCE_DIR}/ThirdParty/yoga ${PROJECT_SOURCE_DIR}/ThirdParty/yoga ${PROJECT_SOURCE_DIR}/Source)
+target_link_libraries(MachiUi_OBJECT_DEPS INTERFACE qjs yogacore spdlog::spdlog ${OS_RELATED_LIBS} MachiUi_OBJECT_DEPS)
+
+
+add_library(MachiUi_OBJECT OBJECT ${Source})
+target_link_libraries(MachiUi_OBJECT PRIVATE MachiUi_OBJECT_DEPS)
+
+# add_library(MachiUi_TEST_OBJECT OBJECT ${Source})
+# target_compile_definitions(MachiUi_TEST_OBJECT PRIVATE MACHI_UI_TEST)
+# target_link_libraries(MachiUi_TEST_OBJECT PRIVATE MachiUi_OBJECT_DEPS)
+
+
+
+# target_link_libraries(MachiUi_OBJECT PRIVATE qjs yogacore spdlog::spdlog ${OS_RELATED_LIBS})
+# target_include_directories(MachiUi_OBJECT PRIVATE ${PROJECT_SOURCE_DIR}/ThirdParty/yoga ${PROJECT_SOURCE_DIR}/Source)
+
+# # 
+
+
+
+add_library(MachiUi STATIC $<TARGET_OBJECTS:MachiUi_OBJECT>)
+target_include_directories(MachiUi INTERFACE ${PROJECT_SOURCE_DIR}/Source
+)
+target_link_libraries(MachiUi PRIVATE MachiUi_OBJECT_DEPS)
+
 
 if(MSVC)
     target_link_options(MachiUi INTERFACE /WHOLEARCHIVE:$<TARGET_FILE:MachiUi>)
@@ -33,7 +65,5 @@ elseif(APPLE)
 else()
     # 리눅스 (GCC/Gold) 설정
     target_link_options(MachiUi
-        PRIVATE "-Wl,--whole-archive" MachiUi "-Wl,--no-whole-archive")
+        PUBLIC "-Wl,--whole-archive" MachiUi "-Wl,--no-whole-archive")
 endif()
-
-target_include_directories(MachiUi PUBLIC ${PROJECT_SOURCE_DIR}/ThirdParty/yoga ${PROJECT_SOURCE_DIR}/Source)

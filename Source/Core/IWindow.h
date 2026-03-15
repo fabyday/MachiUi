@@ -11,7 +11,7 @@ public:
     virtual void Show() = 0;
     virtual void Hide() = 0;
     virtual bool ShouldClose() const = 0;
-
+    
 
     virtual void setBorderless(bool use) = 0;
     virtual void setTitle(const std::string& title)=0;

@@ -29,7 +29,7 @@ public:
     virtual void tick() override;
 
 protected:
-    virtual Nanoseconds now() const;
+    virtual Nanoseconds now() const override;
 
 public:
     virtual double getDeltaTime() override { return _deltaTime; }
