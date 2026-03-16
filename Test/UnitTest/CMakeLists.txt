@@ -27,10 +27,13 @@ addTest(DefaultTimerTest Core/DefaultTimerTest.cpp
 )
 
 # graphics backend test
+if(WIN32)
 addTest(DX12BackendTest
     Renderer/DX12/BackendTest.cpp
     MACHIUI_TEST_LIB
 )
+endif()
+
 # Scrpiting
 addTest(MachiUiTests
     Scripting/ScriptManagerTest.cpp
