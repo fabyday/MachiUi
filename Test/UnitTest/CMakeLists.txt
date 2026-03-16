@@ -16,6 +16,11 @@ addTest(ElementTest Core/ElementTest.cpp
     
 )
 
+#Core
+addTest(ViewManagerTest Core/ViewManagerTest.cpp
+    MACHIUI_TEST_LIB
+)
+
 
 addTest(DefaultTimerTest Core/DefaultTimerTest.cpp
     MACHIUI_TEST_LIB

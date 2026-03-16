@@ -29,7 +29,7 @@ function(addTest targetName sources engineObject)
 
     message("ADD TEST : ${targetName} ${sources} engine ${engineObject} args ${ARGN}")
     # link with gtest and any additional libraries passed after the sources
-    target_link_libraries(${targetName} PRIVATE GTest::gtest_main ${engineObject} ${ARGN})
+    target_link_libraries(${targetName} PRIVATE GTest::gtest_main GTest::gmock ${engineObject} ${ARGN})
     # target_link_libraries(${targetName} PRIVATE GTest::gtest_main ${ARGN})
     # ensure tests can #include <Core/...> etc. by pointing to project Source
     target_include_directories(${targetName} PRIVATE

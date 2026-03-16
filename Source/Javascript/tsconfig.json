@@ -6,12 +6,14 @@
     "moduleResolution": "node",
     "lib": ["ES2020"], // DOM 관련 라이브러리(dom, dom.iterable)는 제거하세요. (QuickJS엔 document가 없음)
     "allowSyntheticDefaultImports": true,
+    "sourceMap": true,  
     "esModuleInterop": true
   },
   "ts-node": {
     "esm": true,
     "experimentalSpecifiers": true,
     "transpileOnly": true,
+    "experimentalSpecifierResolution": "node",
     "compilerOptions": {
       "module": "ESNext" // webpack-cli 최신 버전은 ESM 설정을 지원합니다.
     }

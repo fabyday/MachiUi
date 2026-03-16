@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-console.log(path.resolve(__dirname, "Reconciler/HostConfig.tsx"));
+console.log(path.resolve(__dirname, "Reconciler/HostConfig.ts"));
 const config: webpack.Configuration = {
   mode: "development",
   // 엔트리 포인트를 외부 Source/javascript 폴더로 지정

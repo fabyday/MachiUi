@@ -5,7 +5,7 @@
   "entry": "./Reconciler/HostConfig.ts",
   "type": "module",
   "scripts": {
-    "build": "webpack --mode production --config ./webpack.config.ts",
+    "build": "node --import tsx ./node_modules/webpack/bin/webpack.js --mode production --config ./webpack.config.ts",
     "dev": "webpack --mode development --watch"
   },
   "dependencies": {
@@ -17,6 +17,7 @@
     "@types/react": "^18.2.0",
     "@types/react-reconciler": "^0.28.0",
     "@types/webpack": "^5.28.5",
+    "cross-env": "^10.1.0",
     "ts-loader": "^9.0.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
