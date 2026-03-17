@@ -82,7 +82,6 @@ public:
 private:
     std::map<ServicePhase, std::vector<Entry>> m_factories;
 };
-#include <iostream>
 
 // --- 등록 매크로 ---
 // 이 매크로는 .cpp 파일의 전역 영역에서 사용됩니다.

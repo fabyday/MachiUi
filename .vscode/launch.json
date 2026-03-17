@@ -14,7 +14,7 @@
             "preLaunchTask": "CMake: build"
         },
     {
-        "name": "macOS Debug",
+    "name": "macOS Debug",
     "type": "cppdbg",            // 맥/리눅스용 디버거 타입
     "request": "launch",
     "program": "${command:cmake.launchTargetPath}",

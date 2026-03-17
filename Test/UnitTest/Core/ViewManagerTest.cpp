@@ -1,7 +1,10 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include "Core/IWindowHost.h"
 #include "Mocks/MockWindowHost.h"
+#include "Mocks/MockUiEngine.h"
 #include <Core/ViewManger.h>
+#include <memory>
 
 
 // // UiEngine의 가짜 객체 (필요한 경우)
@@ -13,11 +16,14 @@ class ViewManagerTest : public ::testing::Test {
 protected:
     ViewManager viewManager;
     MockWindowHost mockHost;
+    MockUiEngine mockEngine;
     // MockUiEngine mockEngine;
 
     void SetUp() override {
         // 실제 코드에서 winHost를 어떻게 주입하는지에 따라 다릅니다.
         // 만약 onInit에서 엔진을 통해 가져온다면 해당 로직을 시뮬레이션해야 합니다.
+        injectMockService(&mockEngine, std::unique_ptr<IWindowHost>(&mockHost));
+        viewManager.onInit(&(this->mockEngine));
     }
 };
 
