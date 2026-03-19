@@ -10,7 +10,7 @@ enum class CommandType
     SetClip,
     PushLayer
 };
-
+typedef  uint64_t ViewId;
 typedef struct TextureId
 {
     uint32_t id;
