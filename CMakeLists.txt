@@ -23,6 +23,12 @@ if(${DEFAULT_LOGGER})
     add_subdirectory(ThirdParty/spdlog)
 endif()
 
+# boost DI SINGLE HEADER
+add_library(boost_di INTERFACE)
+target_include_directories(boost_di INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/boost-di")
+
+
+
 if(WIN32)
 message("Platform : Windows")
 elseif(APPLE)

@@ -10,17 +10,15 @@ void TaskScheduler::onInit(UiEngine *engine)
 
 void TaskScheduler::processReservedTask()
 {
-
 }
 
 void TaskScheduler::postPeriodicTask(uint64_t interval, uint64_t initialDelay, std::function<void(void)> callback)
 {
-    
 }
 
 void TaskScheduler::postDelayTask(uint64_t delay, std::function<void(void)> callback)
-{   
-    
+{
+
     uint64_t targetTime = this->timer->getTotalTime() + delay;
     // this->taskQueue.insert({targetTime, callback});
 }

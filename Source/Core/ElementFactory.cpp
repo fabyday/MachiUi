@@ -30,7 +30,6 @@ void ElementFactory::onInit(UiEngine *engine)
     initializeBasicElements(this);
 }
 
-
 // ElementFactory methods
 
 void ElementFactory::registerElementType(const std::string &type, ElementCreatorFunc creator)

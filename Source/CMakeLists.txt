@@ -7,7 +7,7 @@ if(WIN32)
 endif()
 message(STATUS "Final Renderer Sources: ${RendererSource}")
 
-
+file(GLOB DependancyManagementSource "./DependencyManagement/*.cpp")
 file(GLOB ScriptingSource "./Scripting/*.cpp")
 
 
@@ -31,7 +31,7 @@ endif()
 
 add_library(MachiUi_OBJECT_DEPS INTERFACE)
 target_include_directories(MachiUi_OBJECT_DEPS INTERFACE ${PROJECT_SOURCE_DIR}/ThirdParty/yoga ${PROJECT_SOURCE_DIR}/ThirdParty/yoga ${PROJECT_SOURCE_DIR}/Source)
-target_link_libraries(MachiUi_OBJECT_DEPS INTERFACE qjs yogacore spdlog::spdlog ${OS_RELATED_LIBS} MachiUi_OBJECT_DEPS)
+target_link_libraries(MachiUi_OBJECT_DEPS INTERFACE qjs yogacore spdlog::spdlog ${OS_RELATED_LIBS} MachiUi_OBJECT_DEPS boost_di)
 
 
 add_library(MachiUi_OBJECT OBJECT ${Source})
