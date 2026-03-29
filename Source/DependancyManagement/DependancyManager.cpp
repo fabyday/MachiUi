@@ -13,7 +13,9 @@ struct DependancyManager::Impl
     auto create_injector()
     {
 
-     
+        return di::make_injector(
+
+            di::bind<ITaskScheduler>().to<MachiTaskScheduler>().in(di::singleton));
     }
 
     decltype(di::make_injector()) injector;
