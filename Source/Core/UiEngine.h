@@ -4,6 +4,10 @@
 #include "IService.h"
 #include "IWindowHost.h"
 #include "ITimer.h"
+#include "ServiceRegistry.h" // For Container
+class ILogger;
+class IRenderer;
+
 class UiEngine
 {
 private:
@@ -24,10 +28,12 @@ protected:
     //
     void _updateLayout();
 
-
 public:
     UiEngine();
-    ~UiEngine();
+    ~UiEngine()
+    {
+        finalize();
+    }
 
     // 엔진 가동: 부품 조립 및 초기화
     void Init();
@@ -36,15 +42,9 @@ public:
     void Run();
     void finalize();
 
-
-
-    // Internal engine update logic. 
+    // Internal engine update logic.
     // Do not invoke manually in standalone mode.
     void update(double deltaTime);
-    
-
-
-
 
     template <typename T>
     T *GetService()
@@ -59,9 +59,16 @@ public:
         return nullptr;
     }
 
-private:
+    /////// register external services(custom implementations) ///////
+    void attachCustomRenderer(IRenderer *renderer);
+    void attachCustomWindowHost(IWindowHost *windowHost);
+    void attachCustomTimer(ITimer *timer);
+    void attachCustomLogger(ILogger *logger);
 
-std::vector<std::unique_ptr<IService>> m_components;
-    IWindowHost * windowHost;
-    ITimer* timer;
+private:
+    std::vector<std::unique_ptr<IService>> m_components;
+    IWindowHost *windowHost = nullptr;
+    ITimer *timer = nullptr;
+    IRenderer *renderer = nullptr;   // For UiEngine's direct use
+    ILogger *customLogger = nullptr; // For passing to LogManager
 };

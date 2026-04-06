@@ -5,7 +5,7 @@
 #include "SceneGraph.h"
 #include "IService.h"
 #include "ElementFactory.h"
-
+#include "IServiceFactory.h"
 class LogManager;
 
 
@@ -35,6 +35,7 @@ protected:
 
 public:
     SceneManager();
+    SERVICE_CONSTRUCTOR(SceneManager, LogManager, ElementFactory)
     ~SceneManager();
 
     // IComponent interface implementation

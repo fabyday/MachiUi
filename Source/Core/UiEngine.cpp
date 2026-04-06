@@ -3,43 +3,16 @@
 #include "Core/DefaultTimer.h"
 #include "Core/LogManager.h"
 #include "Core/TaskScheduler.h"
+#include "Renderer/IRenderer.h" // Assuming IRenderer interface is defined here
 void UiEngine::_bootstrapComponent()
 {
     // ComponentRegistry에서 등록된 모든 컴포넌트의 팩토리를 실행하여 객체를 생성합니다.
     auto &registry = ServiceRegistry::Instance();
-
-    // 1. 등록된 모든 단계(System, Logic, Render)를 순서대로 순회
-    ServicePhase phases[] = {
-        ServicePhase::System,
-        ServicePhase::Logic,
-        ServicePhase::Render};
-
-    for (auto phase : phases)
-    {
-        // 2. 해당 단계의 팩토리(공장)들을 가져옴
-        const auto &factories = registry.GetFactories(phase);
-
-        for (const auto &factory : factories)
-        {
-            // 3. 팩토리를 실행하여 실제 객체 생성 (ScriptManager 등이 여기서 태어남)
-            auto component = factory();
-
-            // 5. 관리 목록에 추가
-            m_components.push_back(std::move(component));
-        }
-    }
 }
 
 void UiEngine::_initializeComponents()
 {
-    // 이미 _bootstrapComponent에서 OnInit이 호출되었으므로, 여기서는 추가 초기화가 필요한 컴포넌트가 있다면 처리할 수 있습니다.
-    // 현재 구조에서는 별도의 초기화 단계가 필요하지 않을 수 있지만, 확장성을 위해 메서드를 분리해두었습니다.
-    this->GetService<LogManager>()->initialize(this);
-
-    for (auto &component : m_components)
-    {
-        component->initialize(this);
-    }
+    
 }
 
 /**
@@ -74,9 +47,9 @@ void UiEngine::Init()
 
 void UiEngine::setupFundamentalServices()
 {
-
     this->windowHost = this->GetService<IWindowHost>();
     this->timer = this->GetService<ITimer>();
+    this->renderer = this->GetService<IRenderer>(); // Assuming IRenderer is also a service
 }
 
 void UiEngine::finalize()
@@ -116,4 +89,57 @@ void UiEngine::Run()
 
         scheduler->processReservedTask();
     }
+}
+
+void UiEngine::attachCustomRenderer(IRenderer *renderer)
+{
+    // Bind the custom renderer to the container. Use a custom deleter as UiEngine does not own the raw pointer.
+    m_container.bind<IRenderer>(std::shared_ptr<IRenderer>(renderer, [](IRenderer *) {}));
+}
+
+void UiEngine::attachCustomWindowHost(IWindowHost *windowHost)
+{
+    if (this->windowHost)
+    {
+
+        // destroy existing window host if already attached, as we are going to replace it with the new one.
+        // throw std::runtime_error("Custom WindowHost is already attached.");
+    }
+
+    if (windowhost == nullptr)
+    {
+        throw std::runtime_error("Cannot attach null WindowHost.");
+    }
+
+    this->windowHost = windowHost; // Store for UiEngine's direct use
+    // Bind the custom window host to the container. Use a custom deleter.
+}
+
+void UiEngine::attachCustomTimer(ITimer *timer)
+{
+    if (this->timer)
+    {
+        // destroy existing timer if already attached, as we are going to replace it with the new one.
+        // throw std::runtime_error("Custom Timer is already attached.");
+    }
+
+    if (timer == nullptr)
+    {
+        throw std::runtime_error("Cannot attach null Timer.");
+    }
+    this->timer = timer; // Store for UiEngine's direct use
+}
+
+void UiEngine::attachCustomLogger(ILogger *logger)
+{
+    if (this->logger)
+    {
+        /* code */
+    }
+
+    if (logger == nullptr)
+    {
+        throw std::runtime_error("Cannot attach null Logger.");
+    }
+    this->logger = logger; // Store for UiEngine's direct use
 }
