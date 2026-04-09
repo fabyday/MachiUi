@@ -30,7 +30,8 @@ public:
     // 컴포넌트 등록 (매크로에서 호출)
     void Register(ServicePhase phase, std::type_index type, Factory factory)
     {
-        m_factories[phase][type].push_back(factory);
+        m_factories[phase].push_back(factory);
+        m_factories_by_type[phase][type] = factory;
     }
 
     // 특정 단계의 모든 팩토리 가져오기
@@ -42,7 +43,7 @@ public:
 private:
     ServiceRegistry() = default;
     std::map<ServicePhase, std::vector<Factory>> m_factories;
-    std::map<ServicePhase, std::unordered_map<std::type_index, Factory>> m_factories;
+    std::map<ServicePhase, std::unordered_map<std::type_index, Factory>> m_factories_by_type;
 };
 
 #include <iostream>
