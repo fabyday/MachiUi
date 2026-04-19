@@ -1,5 +1,5 @@
 #include "./ElementFactory.h"
-#include "ComponentRegistry.h"
+#include "ServiceRegistry.h"
 #include "UiEngine.h"
 #include "LogManager.h"
 // default Elements
@@ -20,9 +20,9 @@ ElementFactory::~ElementFactory()
 }
 
 // IComponent interface implementation
-void ElementFactory::onInit(UiEngine *engine)
+void ElementFactory::onInit(ServiceProvider *provider)
 {
-    logManager = engine->GetService<LogManager>();
+    logManager = provider->getService<LogManager>();
     logger = logManager->getLogger();
 
     MACHI_LOG_INFO(logger, "{}", "Initialize ElementFactory")

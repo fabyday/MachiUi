@@ -24,7 +24,6 @@
 #include <vector>
 using Microsoft::WRL::ComPtr;
 
-
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib") // 셰이더 컴파일이 필요하다면 추가
@@ -34,6 +33,8 @@ using Microsoft::WRL::ComPtr;
 #ifdef DrawText
 #undef DrawText
 #endif
+
+class ServiceProvider;
 
 struct Dx12Context
 {
@@ -67,17 +68,20 @@ class Dx12RendererImpl : public IRenderer
   Dx12Context dx12Context;
 
 public:
-  virtual void onInit(UiEngine *engine) override;
+  virtual void onInit(ServiceProvider *engine) override;
+
+  virtual void enqueueRenderCommand(const RenderCommand &cmd) override;
+
   /// @brief
   /// @param queue
-  virtual void execute(const RenderQueue &queue) override;
+  virtual void execute() override;
 };
 
-void Dx12RendererImpl::onInit(UiEngine *engine)
+void Dx12RendererImpl::onInit(ServiceProvider *provider)
 {
-  this->engine = engine;
+  // this->engine = engine;
   // Get Window Host
-  this->viewManager = engine->GetService<ViewManager>();
+  this->viewManager = provider->getService<ViewManager>();
 
   if (!initializeDx12Context(&dx12Context))
   {
@@ -85,38 +89,18 @@ void Dx12RendererImpl::onInit(UiEngine *engine)
   }
 }
 
-void Dx12RendererImpl::execute(const RenderQueue &queue)
+void Dx12RendererImpl::enqueueRenderCommand(const RenderCommand &cmd)
 {
-  auto commands = queue.GetCommands();
+  renderQueue.recordCommand(cmd.target, std::get<Color>(cmd.data));
+}
+
+void Dx12RendererImpl::execute()
+{
+  auto commands = renderQueue.GetCommands();
   for (auto cmd : commands)
   {
     if (this->viewManager->validate(cmd.target))
     {
-      switch (cmd.type)
-      {
-      case CommandType::DrawRect:
-      {
-      }
-      case CommandType::SetClip:
-      {
-        // Handle clear command
-        // Example: clear the render target for cmd.target
-        break;
-      }
-      case CommandType::DrawText:
-      {
-        // Handle draw text command
-        // Example: render text at specified position
-        break;
-      }
-      case CommandType::PushLayer:
-      {
-        break;
-      }
-      default: // do nothing;
-        // Unknown command type
-        break;
-      }
     }
   }
 };
@@ -180,4 +164,4 @@ MACHI_UI_STATIC bool initializeDx12Context(Dx12Context *out)
   return true;
 }
 
-REGISTER_UI_SERVICE(Dx12RendererImpl, ServicePhase::Render)
+REGISTER_UI_COMPONENT_AS(Dx12RendererImpl, IRenderer, ServicePhase::Render)

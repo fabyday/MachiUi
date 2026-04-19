@@ -8,21 +8,19 @@
 #include "IServiceFactory.h"
 class LogManager;
 
-
+class ServiceProvider;
 
 class SceneManager : public IService
 {
 
     // manager dependency
-    LogManager* logManager = nullptr;
+    LogManager *logManager = nullptr;
 
-
-    //helper
+    // helper
     ElementFactory *elementFactory = nullptr;
 
     // Zero is reserved for null pointer, so we start from 1
     uint64_t nextElementId = 1;
-
 
     std::vector<uint64_t> dirtyElementLists;
 
@@ -38,7 +36,7 @@ public:
     ~SceneManager();
 
     // IComponent interface implementation
-    virtual void onInit(UiEngine *engine) override;
+    virtual void onInit(ServiceProvider *provider) override;
 
     // Scene Graph management(create, destroy, get)
     uint64_t createSceneGraph(const std::string &sceneName);
@@ -59,7 +57,7 @@ public:
     void attachElementToGraph(uint64_t graphId, uint64_t elementId);
     void detachElementToGraph(uint64_t graphId, uint64_t elementId);
     void removeElementToGraph(uint64_t graphId, uint64_t elementId);
-    
+
     void updateAttribute(uint64_t ElementId, const std::string &key, const Element::AttrValue &value);
 
     // check if

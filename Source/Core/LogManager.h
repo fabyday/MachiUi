@@ -2,6 +2,8 @@
 #include "IService.h"
 #include "ILogger.h"
 
+class ServiceProvider;
+
 class LogManager : public IService
 {
 
@@ -11,7 +13,7 @@ public:
     virtual ~LogManager() = default;
 
     // 엔진이 초기화될 때 호출 (여기서 다른 컴포넌트를 찾거나 초기 설정을 합니다)
-    virtual void onInit(UiEngine *engine) override;
+    virtual void onInit(ServiceProvider *provider) override;
 
     // global logger setter, getter
     void setCustomLogger(ILogger *logger);

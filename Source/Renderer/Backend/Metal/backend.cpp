@@ -5,11 +5,9 @@
 
 MACHI_UI_STATIC bool initMetal();
 
-
-
-
 /// @brief
-class MetalRendererImpl : public IRenderer {
+class MetalRendererImpl : public IRenderer
+{
 
   //   std::unordered_map<uint32_t, void *> nativeHandleMap;
 
@@ -24,7 +22,6 @@ void MetalRendererImpl::onInit(UiEngine *engine) {}
 
 void MetalRendererImpl::execute(const RenderQueue &queue) {}
 
-REGISTER_UI_SERVICE(MetalRendererImpl, ServicePhase::Render)
-
+REGISTER_UI_SERVICE_AS(MetalRendererImpl, IRenderer, ServicePhase::Render)
 
 bool initMetal();

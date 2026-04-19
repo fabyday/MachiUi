@@ -1,11 +1,11 @@
 #include "DefaultTimer.h"
-#include "ComponentRegistry.h"
+#include "ServiceRegistry.h"
 #include <chrono>
 
 DefaultTimer::DefaultTimer()
     : _startTime(this->now()), _lastTickTime(this->now()) {}
 
-void DefaultTimer::onInit(UiEngine *engine)
+void DefaultTimer::onInit(ServiceProvider *provider)
 {
   // 초기화 시점의 시간 기록
   _startTime = this->now();
@@ -66,4 +66,4 @@ double DefaultTimer::getAbsoluteTime() const
 
 uint64_t DefaultTimer::getTotalTime() { return this->totalMS; }
 
-REGISTER_UI_COMPONENT(DefaultTimer, ServicePhase::System);
+REGISTER_UI_COMPONENT_AS(DefaultTimer, ITimer, ServicePhase::System);

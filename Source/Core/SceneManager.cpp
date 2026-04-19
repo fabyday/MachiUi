@@ -1,9 +1,10 @@
 #include "SceneManager.h"
-#include "ComponentRegistry.h"
+#include "ServiceRegistry.h"
 #include "UiEngine.h"
 #include "SceneGraph.h"
 #include "LogManager.h"
 #include "ILogger.h"
+#include "ServiceProvider.h"
 
 SceneManager::SceneManager() : nextElementId(1)
 {
@@ -12,12 +13,11 @@ SceneManager::~SceneManager()
 {
 }
 
-void SceneManager::onInit(UiEngine *engine)
-{
-    this->elementFactory = engine->GetService<ElementFactory>();
-    this->logManager = engine->GetService<LogManager>();
+void SceneManager::onInit(ServiceProvider *provider)
+{   
+    this->elementFactory = provider->getService<ElementFactory>();
+    this->logManager = provider->getService<LogManager>();
 }
-
 
 uint64_t SceneManager::generateElementId()
 {

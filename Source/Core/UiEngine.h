@@ -46,29 +46,17 @@ public:
     // Do not invoke manually in standalone mode.
     void update(double deltaTime);
 
-    template <typename T>
-    T *GetService()
-    {
-        for (auto &component : m_components)
-        {
-            if (auto casted = dynamic_cast<T *>(component.get()))
-            {
-                return casted;
-            }
-        }
-        return nullptr;
-    }
-
-    /////// register external services(custom implementations) ///////
+       /////// register external services(custom implementations) ///////
     void attachCustomRenderer(IRenderer *renderer);
     void attachCustomWindowHost(IWindowHost *windowHost);
     void attachCustomTimer(ITimer *timer);
     void attachCustomLogger(ILogger *logger);
 
 private:
-    std::vector<std::unique_ptr<IService>> m_components;
+    std::unique_ptr<ServiceProvider> m_serviceProvider;
+
     IWindowHost *windowHost = nullptr;
     ITimer *timer = nullptr;
-    IRenderer *renderer = nullptr;   // For UiEngine's direct use
-    ILogger *customLogger = nullptr; // For passing to LogManager
+    IRenderer *renderer = nullptr; // For UiEngine's direct use
+    ILogger *logger = nullptr;     // For passing to LogManager
 };

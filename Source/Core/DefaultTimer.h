@@ -1,6 +1,7 @@
 #pragma once
 #include <chrono>
 #include "ITimer.h"
+class ServiceProvider;
 
 class DefaultTimer : public ITimer
 {
@@ -20,7 +21,7 @@ public:
     virtual ~DefaultTimer() override = default;
 
     // IService interface
-    virtual void onInit(UiEngine *engine) override;
+    virtual void onInit(ServiceProvider *engine) override;
 
     // ITimer interface
     virtual void setPaused(bool paused) override;

@@ -1,6 +1,7 @@
 #include "ScriptManager.h"
 #include "../Core/SceneManager.h"
 #include "../Core/LogManager.h"
+#include "../Core/ServiceProvider.h"
 struct JSModuleDef;
 class JSRuntime;
 class JSContext;
@@ -33,19 +34,18 @@ void ScriptManager::Update()
 {
 }
 
-void ScriptManager::onInit(UiEngine *engine)
+void ScriptManager::onInit(ServiceProvider *provider)
 {
-    this->m_engine = engine;
 
-    this->m_fileLoader = engine->GetService<IFIleLoader>();
+    this->m_fileLoader = provider->getService<IFIleLoader>();
 
     if (!this->m_fileLoader)
     {
         std::cerr << "[ScriptManager] Critical: IFileLoader not found!" << std::endl;
     }
 
-    this->m_sceneManager = engine->GetService<SceneManager>();
-    this->logManager = engine->GetService<LogManager>();
+    this->m_sceneManager = provider->getService<SceneManager>();
+    this->logManager = provider->getService<LogManager>();
 }
 
 // void ScriptManager::OnUpdate()

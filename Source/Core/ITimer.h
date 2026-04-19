@@ -1,5 +1,6 @@
 #pragma once
 #include "IService.h"
+#include "ServiceProvider.h"
 #include <cstdint>
 
 // Convert _** to NanoSeconds
@@ -33,7 +34,7 @@ public:
     using Nanoseconds = uint64_t;
     virtual ~ITimer() = default;
 
-    virtual void onInit(UiEngine *engine) = 0;
+    virtual void onInit(ServiceProvider *engine) = 0;
     // 일시정지 제어
     virtual void setPaused(bool paused) = 0;
     virtual bool isPaused() const = 0;

@@ -19,7 +19,7 @@ struct Dx12Context
     uint64_t globalFenceValue = 0;
 };
 
-     bool initializeDx12Context(Dx12Context *out);
+bool initializeDx12Context(Dx12Context *out);
 
 TEST(Dx12InitTest, CreateDeviceSuccess)
 {

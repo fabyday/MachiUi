@@ -3,8 +3,9 @@
 #include "../../Core/IWindow.h"
 #include "../../Core/TaskScheduler.h"
 
-
 #include <vector>
+
+class ServiceProvider;
 
 class Win32WindowHost : public IWindowHost
 {
@@ -17,7 +18,7 @@ public:
     virtual ~Win32WindowHost();
 
     // IService interface implementation
-    void onInit(UiEngine *engine) override;
+    void onInit(ServiceProvider *provider) override;
 
     // IWindowHost interface implementation
     IWindow *requestWindow() override;

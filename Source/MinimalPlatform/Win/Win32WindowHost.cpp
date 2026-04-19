@@ -1,5 +1,5 @@
 #include "Win32WindowHost.h"
-#include "../../Core/ComponentRegistry.h"
+#include "../../Core/ServiceRegistry.h"
 #include "osdeps.h"
 
 Win32WindowHost::Win32WindowHost()
@@ -11,7 +11,7 @@ Win32WindowHost::~Win32WindowHost()
 }
 
 // IService interface implementation
-void Win32WindowHost::onInit(UiEngine *engine)
+void Win32WindowHost::onInit(ServiceProvider *provider)
 {
 }
 
@@ -19,7 +19,7 @@ void Win32WindowHost::onInit(UiEngine *engine)
 IWindow *Win32WindowHost::requestWindow()
 {
     IWindow *result = nullptr;
-    if (winPool.size())
+    if (winPool.empty())
     {
         result = createWindow();
         if (result == nullptr)
@@ -31,4 +31,4 @@ IWindow *Win32WindowHost::requestWindow()
     return result;
 }
 
-REGISTER_UI_COMPONENT(Win32WindowHost, ServicePhase::System);
+REGISTER_UI_COMPONENT_AS(Win32WindowHost, IWindowHost, ServicePhase::System);

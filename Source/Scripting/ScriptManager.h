@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 #include <memory>
-#include "Core/ComponentRegistry.h"
+#include "Core/ServiceRegistry.h"
 #include "Core/IFileLoader.h"
 #include "Core/UiEngine.h"
 
@@ -62,7 +62,7 @@ public:
     ScriptExecutionContext *getActiveContext();
 
     // 엔진이 초기화될 때 호출 (여기서 다른 컴포넌트를 찾거나 초기 설정을 합니다)
-    virtual void onInit(UiEngine *engine) override;
+    virtual void onInit(ServiceProvider *provider) override;
 
     IFIleLoader *GetFileLoader() { return m_fileLoader; }
     SceneManager *getSceneManager() { return m_sceneManager; }

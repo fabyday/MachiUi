@@ -2,18 +2,19 @@
 #include "../../Core/IWindowHost.h"
 #include <vector>
 
+class ServiceProvider;
 
+class OSXWindowHost : public IWindowHost
+{
+    std::vector<IWindow *> windowLists;
 
-class OSXWindowHost : public IWindowHost{
-    std::vector<IWindow*> windowLists;
 public:
     OSXWindowHost();
     virtual ~OSXWindowHost() override;
 
     // IService interface implementation
-    void onInit(UiEngine *engine) override;
+    void onInit(ServiceProvider *provider) override;
 
     // IWindowHost interface implementation
-    IWindow * requestWindow() override;
-
+    IWindow *requestWindow() override;
 };

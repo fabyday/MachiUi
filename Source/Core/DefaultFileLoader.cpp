@@ -2,7 +2,9 @@
 #include <sstream>
 #include <filesystem>
 #include "DefaultFileLoader.h"
-#include "ComponentRegistry.h"
+#include "ServiceRegistry.h"
+#include "ServiceProvider.h"
+#include "UiEngine.h"
 
 DefaultFileLoader::DefaultFileLoader() = default;
 
@@ -20,7 +22,7 @@ std::optional<std::string> DefaultFileLoader::readFile(const std::string &path)
     return buffer.str();
 };
 
-void DefaultFileLoader::onInit(UiEngine *engine) {
+void DefaultFileLoader::onInit(ServiceProvider *engine) {
 
 };
 
@@ -44,5 +46,4 @@ std::optional<std::string> DefaultFileLoader::resolvePath(const std::string &ref
     }
 }
 
-
-REGISTER_UI_COMPONENT(DefaultFileLoader, ServicePhase::System);
+REGISTER_UI_COMPONENT_AS(DefaultFileLoader, IFIleLoader, ServicePhase::System);

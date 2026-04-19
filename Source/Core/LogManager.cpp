@@ -1,8 +1,9 @@
-#include "ComponentRegistry.h"
+#include "ServiceRegistry.h"
 #include "LogManager.h"
 #include "DefaultLogger.h"
 
-void LogManager::onInit(UiEngine *engine)
+
+void LogManager::onInit(ServiceProvider *provider)
 {
 
 #ifdef STANDALONE_MODE
@@ -12,7 +13,6 @@ void LogManager::onInit(UiEngine *engine)
     // defaultLogger = new NullLogger();
 #endif
 }
-
 
 void LogManager::setCustomLogger(ILogger *logger)
 {

@@ -1,13 +1,13 @@
 #include "IService.h"
 
+void IService::initialize(ServiceProvider *provider)
+{
+    if (initFlag)
+    {
 
-void IService::initialize(UiEngine*engine){
-    if(initFlag){
-
-        return;    
+        return;
     }
-    
+
     initFlag = true;
-    onInit(engine);
-    
+    onInit(provider);
 }

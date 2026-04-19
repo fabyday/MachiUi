@@ -9,6 +9,8 @@
 class LogManager;
 class ILogger;
 
+class ServiceProvider;
+
 using ElementCreatorFunc = std::function<std::unique_ptr<Element>(uint64_t uid)>;
 
 // @brief ElementFactory is responsible for creating Element instances
@@ -27,7 +29,7 @@ public:
     ~ElementFactory();
 
     // IComponent interface implementation
-    virtual void onInit(UiEngine *engine) override;
+    virtual void onInit(ServiceProvider *provider) override;
 
     void registerElementType(const std::string &type, ElementCreatorFunc creator);
     std::unique_ptr<Element> create(const std::string &type, uint64_t uid);

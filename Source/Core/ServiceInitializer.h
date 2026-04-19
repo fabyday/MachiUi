@@ -1,24 +1,18 @@
 #pragma once
 
-class UiEngine;
+class ServiceProvider;
+class ServiceRegistry;
 
-class ServiceInitializer {
+class ServiceInitializer
+{
 public:
-  explicit ServiceInitializer(UiEngine* engine) : m_engine(engine) {}
+  // this is Object Createion Phase, only create objects, do not call onInit
+  static bool createAllServices(ServiceRegistry &registry, ServiceProvider &provider);
+
+  /**
+   * Initialization phase( I mean... (onInit) phase),
+   * setup and ready to use Provider with a fully Functional Services
+   */
+  static bool initializeAllServices(ServiceRegistry &registry, ServiceProvider &provider);
   ~ServiceInitializer() = default;
-
-  template <typename T>
-  T* GetService() const;
-
-  UiEngine* GetEngine() const { return m_engine; }
-
-private:
-  UiEngine* m_engine;
 };
-
-#include "UiEngine.h"
-
-template <typename T>
-T* ServiceInitializer::GetService() const {
-    return m_engine->GetService<T>();
-}

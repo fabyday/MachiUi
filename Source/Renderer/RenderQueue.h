@@ -5,6 +5,17 @@
 class RenderQueue
 {
 public:
+    
+    RenderQueue(size_t initialCapacity = 100)
+        : m_commands(initialCapacity)
+    {
+    }
+
+    void reserve(size_t capacity)
+    {
+        m_commands.reserve(capacity);
+    }
+
     void recordCommand(ViewId id, Color color)
     {
         m_commands.push_back({CommandType::DrawRect, id, color});

@@ -1,27 +1,25 @@
-#include "../../Core/ComponentRegistry.h"
+#include "Core/ServiceRegistry.h"
 #include "OSXWindowHost.h"
 #include "OSXWindow.h"
 
-void OSXWindowHost::onInit(UiEngine *engine)
+void OSXWindowHost::onInit(ServiceProvider *provider)
 {
-
-
 }
 OSXWindowHost::OSXWindowHost()
 {
 }
 OSXWindowHost::~OSXWindowHost()
 {
-    for(auto win : windowLists){
+    for (auto win : windowLists)
+    {
         delete win;
     }
     windowLists.clear();
-    
 }
 
-IWindow* OSXWindowHost::requestWindow()
+IWindow *OSXWindowHost::requestWindow()
 {
     return createWindow();
 }
 
-REGISTER_UI_COMPONENT(OSXWindowHost, ServicePhase::System);
+REGISTER_UI_COMPONENT_AS(OSXWindowHost, IWindowHost, ServicePhase::System);

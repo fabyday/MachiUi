@@ -6,6 +6,11 @@
 #include <vector>
 #include <set>
 #include "Core/ITimer.h"
+
+#include "Renderer/RenderCommand.h"
+
+class ServiceProvider;
+
 class TaskScheduler : public IService
 {
     std::multiset<std::function<void(void)>> taskQueue;
@@ -29,13 +34,14 @@ public:
     // mil-sec
     void postDelayTask(uint64_t delay, std::function<void(void)> callback);
 
+    void pushRenderTask(const RenderCommand &cmd);
     //
     void postPeriodicTask(uint64_t interval, uint64_t initialDelay, std::function<void(void)> callback);
 
     // run on engine
     void processReservedTask();
 
-    void onInit(UiEngine *engine) override;
+    void onInit(ServiceProvider *engine) override;
 
     void update();
 

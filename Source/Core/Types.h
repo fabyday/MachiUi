@@ -35,9 +35,9 @@ struct InputEvent
         MouseUp,
         MouseMove,
         MouseWheel,
-        TouchStart,
-        TouchMove,
-        TouchEnd
+        // TouchStart,
+        // TouchMove,
+        // TouchEnd
     } type;
 
     union
@@ -76,11 +76,28 @@ struct KeyEvent
     bool metaDown;
 };
 
-struct MouseEvent
+enum class MouseButton
 {
+    Left = 0,
+    Middle = 1,
+    Right = 2
 };
 
-// Nah...
+struct MouseEvent
+{
+    float x;
+    float y;
+    MouseButton button;
+    bool isPressed;
+};
+
+struct MouseWheelEvent
+{
+    float delta;
+};
+
+// Nah... I don't implement touch event for now, since it's not a priority,
+// and it can be easily implemented later when we need it.
 // struct TouchEvent{
 
 // };

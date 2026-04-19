@@ -1,7 +1,11 @@
 #pragma once
-#include "Core/Types.h"
 #include <cstdint>
 #include <variant>
+
+#include "Core/Types.h"
+#include "Common/typedef.h"
+
+
 
 enum class CommandType
 {
@@ -10,7 +14,7 @@ enum class CommandType
     SetClip,
     PushLayer
 };
-typedef  uint64_t ViewId;
+
 typedef struct TextureId
 {
     uint32_t id;
