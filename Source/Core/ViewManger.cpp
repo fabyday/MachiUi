@@ -41,7 +41,6 @@ void ViewManager::detachView(ViewId view)
 
 void ViewManager::destroyView(ViewId view)
 {
-    
 }
 
 ViewId ViewManager::createView(ViewId parentId)
@@ -65,7 +64,6 @@ ViewId ViewManager::createView(ViewId parentId)
         if (this->validate(parentId))
         {
             // Create a child view (not a window)
-            
         }
     }
 

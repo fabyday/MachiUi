@@ -12,7 +12,7 @@
 class ServiceProvider;
 
 /**
- * task scheduler 
+ * task scheduler
  * schedule JS Engine's Async Job
  */
 class TaskScheduler : public IService

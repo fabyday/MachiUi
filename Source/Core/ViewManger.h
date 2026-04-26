@@ -16,6 +16,13 @@ struct ViewInfo
     bool isAlive;
 };
 
+
+
+/**
+ * View manager do...
+ * 뷰 매니저가 무엇이냐
+ * 
+ */
 class ViewManager : public IService
 {
 private:
