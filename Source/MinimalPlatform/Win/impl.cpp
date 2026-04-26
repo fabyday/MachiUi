@@ -22,15 +22,17 @@ class Win32Window : public IWindow
 public:
     Win32Window();          // <--- 선언 추가
     virtual ~Win32Window(); // <--- 선언 추가 (IWindow가 가상이므로 가상 소멸자 권장)
-    bool Init(const std::string &title, uint32_t width, uint32_t height) override;
-    void Update() override;
-    void Close() override;
-    void Show() override;
-    void Hide() override;
-    bool ShouldClose() const override;
+    bool init(const std::string &title, uint32_t width, uint32_t height) override;
+    void update() override;
+    void close() override;
+    void show() override;
+    void hide() override;
+    bool shouldClose() const override;
 
     virtual void setBorderless(bool use) override;
     virtual void setTitle(const std::string &title) override;
+
+    virtual NativeHandle getNativeHandle() const override;
 
     void setHWND(HWND hwnd);
     HWND getHWND();
@@ -54,19 +56,19 @@ Win32Window::Win32Window() : hwnd(nullptr)
 
 Win32Window::~Win32Window()
 {
-    Close();
+    close();
 }
 
-void Win32Window::Show()
+void Win32Window::show()
 {
     ShowWindow(hwnd, SW_SHOWDEFAULT);
 }
-void Win32Window::Hide()
+void Win32Window::hide()
 {
     ShowWindow(hwnd, SW_HIDE);
 }
 
-bool Win32Window::Init(const std::string &title, uint32_t width, uint32_t height)
+bool Win32Window::init(const std::string &title, uint32_t width, uint32_t height)
 {
     width = width;
     height = height;
@@ -80,7 +82,7 @@ HWND Win32Window::getHWND()
 {
     return hwnd;
 }
-void Win32Window::Update()
+void Win32Window::update()
 {
 
     MSG msg;
@@ -90,13 +92,19 @@ void Win32Window::Update()
         DispatchMessage(&msg);
     }
 }
-void Win32Window::Close()
+void Win32Window::close()
 {
+    DestroyWindow(hwnd);
 }
-bool Win32Window::ShouldClose() const
+bool Win32Window::shouldClose() const
 {
 
     return false;
+}
+
+IWindow::NativeHandle Win32Window::getNativeHandle() const
+{
+    return hwnd;
 }
 
 static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -128,6 +136,9 @@ IWindow *createWindow()
 }
 
 // window callbacks
+/**
+ * System Input( win32 or Mac )
+ */
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
@@ -138,7 +149,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM l
         IWindow *targetWindow = reinterpret_cast<IWindow *>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
         if (targetWindow)
         {
-            targetWindow->Close();
+            targetWindow->close();
         }
         PostQuitMessage(0);
         return 0;

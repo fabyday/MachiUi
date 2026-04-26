@@ -60,7 +60,7 @@ MACHI_UI_STATIC void finalizeDx12Context();
 class Dx12RendererImpl : public IRenderer
 {
 
-  std::unordered_map<uint32_t, void *> nativeHandleMap;
+  std::unordered_map<uint32_t, IWindow::NativeHandle> nativeHandleMap;
 
   IWindowHost *winHost;
   UiEngine *engine;

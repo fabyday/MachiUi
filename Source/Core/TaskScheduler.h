@@ -11,6 +11,10 @@
 
 class ServiceProvider;
 
+/**
+ * task scheduler 
+ * schedule JS Engine's Async Job
+ */
 class TaskScheduler : public IService
 {
     std::multiset<std::function<void(void)>> taskQueue;

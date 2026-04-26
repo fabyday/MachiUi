@@ -89,7 +89,7 @@ void UiEngine::Run()
     IWindow *win = this->windowHost->requestWindow();
     TaskScheduler *scheduler = this->m_serviceProvider->getService<TaskScheduler>();
 
-    win->Show();
+    win->show();
     win->setTitle("test");
     win->setBorderless(true);
 
@@ -98,7 +98,7 @@ void UiEngine::Run()
         // upate timer tick
         this->timer->tick();
 
-        win->Update();
+        win->update();
         // this->m_serviceProvider->getService<LogManager>()->getLogger()->LogDebug("ticktick");
         this->update(this->timer->getDeltaTime());
 

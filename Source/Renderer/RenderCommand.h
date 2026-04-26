@@ -5,8 +5,6 @@
 #include "Core/Types.h"
 #include "Common/typedef.h"
 
-
-
 enum class CommandType
 {
     DrawRect,
@@ -14,6 +12,10 @@ enum class CommandType
     SetClip,
     PushLayer
 };
+
+
+//////////////////////////////////////////
+// Rendering object
 
 typedef struct TextureId
 {
@@ -24,6 +26,9 @@ typedef struct TextData
 {
     const char *content;
 } TextData;
+
+/////////////////////////////////////////
+
 
 struct RenderCommand
 {

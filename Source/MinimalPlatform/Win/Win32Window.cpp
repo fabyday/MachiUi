@@ -8,7 +8,7 @@
 
 // Win32Window::~Win32Window()
 // {
-//     Close();
+//     close();
 // }
 
 // LRESULT CALLBACK Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -56,7 +56,7 @@
 //     // Win32 메시지 처리 코드
 // }
 
-// void Win32Window::Close()
+// void Win32Window::close()
 // {
 //     // Win32 창 닫기 코드
 // }
