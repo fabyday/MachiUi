@@ -21,7 +21,7 @@ protected:
     // initialized Renderer & platform
     void _initializePlatformDependantComponent();
     // init IO Component
-    void _initializeIOComponent();
+    void _initializeIOChannel();
 
     void setupFundamentalServices();
 

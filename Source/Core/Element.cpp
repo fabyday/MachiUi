@@ -108,7 +108,7 @@ void StyleApplier::ApplyStyle(YGNodeRef node, const std::string &key, const std:
     bool isAuto = (value == "auto");
     bool isPercent = (value.back() == '%');
     float numValue = isPercent ? std::stof(value.substr(0, value.size() - 1)) / 100.0f : std::stof(value);
-
+    
     styleMap[key](node, value);
 }
 

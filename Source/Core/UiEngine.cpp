@@ -2,12 +2,12 @@
 #include "Core/ServiceRegistry.h"
 #include "Core/DefaultTimer.h"
 #include "Core/LogManager.h"
-
 #include "Core/TaskScheduler.h"
 #include "Core/ServiceInitializer.h"
 #include "Core/ServiceProvider.h"
-
+#include "Core/InputManager.h"
 #include "Renderer/IRenderer.h" // Assuming IRenderer interface is defined here
+
 void UiEngine::_bootstrapComponent()
 {
     // ComponentRegistry에서 등록된 모든 컴포넌트의 팩토리를 실행하여 객체를 생성합니다.
@@ -30,8 +30,23 @@ void UiEngine::_initializePlatformDependantComponent()
 {
 }
 
-void UiEngine::_initializeIOComponent()
+void UiEngine::_initializeIOChannel()
 {
+    auto inputManager = this->m_serviceProvider->getService<InputManager>();
+
+    // create default input channel for general use.
+    auto Code = inputManager->createChannel(MachiArgsHashByName("DefaultInputChannel"));
+    if (isMachiFailed(Code))
+    {
+        std::cerr << "Failed to create DefaultInputChannel: " << Code.msg << std::endl;
+    }
+
+    // create default input channel for window events.
+    Code = inputManager->createChannel(MachiArgsHashByName("WindowEventChannel"));
+    if (isMachiFailed(Code))
+    {
+        std::cerr << "Failed to create WindowEventChannel: " << Code.msg << std::endl;
+    }
 }
 
 UiEngine::UiEngine() : engineInitFlag(false) {}
@@ -47,6 +62,8 @@ void UiEngine::Init()
     this->_bootstrapComponent();
     // 2. 컴포넌트 초기화 (의존성 주입 포함)
     this->_initializeComponents();
+    this->_initializeIOChannel();
+    this->_initializePlatformDependantComponent();
 
     // Engine
     this->setupFundamentalServices();
@@ -85,7 +102,10 @@ void UiEngine::update(double deltaTime)
 void UiEngine::Run()
 {
     // 실제로는 여기에 윈도우 메시지 루프나 종료 조건이 들어갑니다.
+
     bool running = true;
+
+    // TODO : remove this code after implementing the actual main loop with proper exit conditions.
     IWindow *win = this->windowHost->requestWindow();
     TaskScheduler *scheduler = this->m_serviceProvider->getService<TaskScheduler>();
 
@@ -102,8 +122,9 @@ void UiEngine::Run()
         // this->m_serviceProvider->getService<LogManager>()->getLogger()->LogDebug("ticktick");
         this->update(this->timer->getDeltaTime());
 
+        ///
         // _sleep(10);
-        // async tasks 
+        // async tasks
         scheduler->processReservedTask();
     }
 }

@@ -22,4 +22,5 @@ public:
 
     // IWindowHost interface implementation
     IWindow *requestWindow() override;
+    void update() override;
 };

@@ -82,15 +82,10 @@ HWND Win32Window::getHWND()
 {
     return hwnd;
 }
+
+/// @brief update Calls and msgs
 void Win32Window::update()
 {
-
-    MSG msg;
-    while (PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
-    {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
 }
 void Win32Window::close()
 {
@@ -135,28 +130,81 @@ IWindow *createWindow()
     // ShowWindow(hwnd, SW_SHOWDEFAULT);
 }
 
+void handleWindowEvent(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    // 창 이벤트 처리 로직 (예: 크기 변경, 포커스 등)
+    switch (message)
+    {
+    case WM_SIZE:
+        // 창 크기 변경 처리
+        break;
+    case WM_SETFOCUS:
+        // 창이 포커스를 얻었을 때 처리
+        break;
+    case WM_KILLFOCUS:
+        // 창이 포커스를 잃었을 때 처리
+        break;
+    default:
+        return;
+    }
+}
+void handleInputEvent(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    // 입력 이벤트 처리 로직 (예: 키보드, 마우스 입력 등)
+    switch (message)
+    {
+    case WM_KEYDOWN:
+        // 키가 눌렸을 때 처리
+        break;
+    case WM_KEYUP:
+        // 키가 떼졌을 때 처리
+        break;
+    case WM_MOUSEMOVE:
+        // 마우스 이동 처리
+        break;
+    case WM_LBUTTONDOWN:
+        // 왼쪽 마우스 버튼이 눌렸을 때 처리
+        break;
+    case WM_LBUTTONUP:
+        // 왼쪽 마우스 버튼이 떼졌을 때 처리
+        break;
+    default:
+        return;
+    }
+}
+
+bool translateMessage2IMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    // 메시지 분류 및 처리
+    switch (message)
+    {
+    case WM_SIZE:
+    case WM_SETFOCUS:
+    case WM_KILLFOCUS:
+        handleWindowEvent(hwnd, message, wParam, lParam);
+        return true; // 메시지가 처리되었음을 나타냄
+    case WM_KEYDOWN:
+    case WM_KEYUP:
+    case WM_MOUSEMOVE:
+    case WM_LBUTTONDOWN:
+    case WM_LBUTTONUP:
+        handleInputEvent(hwnd, message, wParam, lParam);
+        return true; // 메시지가 처리되었음을 나타냄
+    default:
+        return false; // 메시지가 처리되지 않았음을 나타냄
+    }
+}
+
 // window callbacks
 /**
  * System Input( win32 or Mac )
  */
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    switch (message)
-    {
-    case WM_DESTROY:
-    {
 
-        IWindow *targetWindow = reinterpret_cast<IWindow *>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
-        if (targetWindow)
-        {
-            targetWindow->close();
-        }
-        PostQuitMessage(0);
-        return 0;
+    IWindow *targetWindow = reinterpret_cast<IWindow *>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+    if (translateMessage2IMessage(hwnd, message, wParam, lParam))
+    {
     }
-    case WM_CLOSE:
-    
-    default:
-        return DefWindowProc(hwnd, message, wParam, lParam);
-    }
+    return DefWindowProc(hwnd, message, wParam, lParam);
 }

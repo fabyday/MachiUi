@@ -1,13 +1,28 @@
 #pragma once
 #include <string>
+#include "../Common/Code.h"
+#include "InputManager.h"
 class IWindow
 {
 public:
     using NativeHandle = void *;
+    InputManager *inputManager;
 
     virtual ~IWindow() = default;
     // --- 생명 주기 및 제어 ---
     virtual bool init(const std::string &title, uint32_t width, uint32_t height) = 0;
+
+    MachiCode setInputManager(InputManager *inputManager)
+    {
+
+        if (inputManager == nullptr)
+        {
+            return MAKE_MACHI_ERR(MachiCodeEnum::MACHI_ERR_NULL_PTR, "InputManager pointer is null");
+        }
+        this->inputManager = inputManager;
+        return MAKE_MACHI_SUCCESS;
+    }
+
     virtual void update() = 0; // OS 메시지 처리 (PollEvents)
     virtual void close() = 0;
     virtual void show() = 0;
