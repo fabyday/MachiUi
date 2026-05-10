@@ -1,12 +1,25 @@
 #pragma once
 #include <vector>
 #include <memory>
+#include <type_traits>
 #include "IService.h"
 #include "IWindowHost.h"
 #include "ITimer.h"
 #include "ServiceRegistry.h" // For Container
+#include "ServiceProvider.h"
+#include "../Common/typedef.h"
+
 class ILogger;
 class IRenderer;
+class SceneManager;
+class ScriptManager;
+class ViewManager;
+
+struct RuntimeRoot
+{
+    ViewId viewId = 0;
+    uint64_t sceneGraphId = 0;
+};
 
 class UiEngine
 {
@@ -41,6 +54,7 @@ public:
     // 메인 루프: 모든 부품의 Update 호출
     void Run();
     void finalize();
+    RuntimeRoot mountScriptView(const std::string &modulePath);
 
     // Internal engine update logic.
     // Do not invoke manually in standalone mode.
@@ -52,6 +66,12 @@ public:
     void attachCustomTimer(ITimer *timer);
     void attachCustomLogger(ILogger *logger);
 
+    template <typename T, std::enable_if_t<std::is_base_of_v<IService, T>, int> = 0>
+    T *GetService()
+    {
+        return m_serviceProvider ? m_serviceProvider->getService<T>() : nullptr;
+    }
+
 private:
     std::unique_ptr<ServiceProvider> m_serviceProvider;
 
@@ -59,4 +79,8 @@ private:
     ITimer *timer = nullptr;
     IRenderer *renderer = nullptr; // For UiEngine's direct use
     ILogger *logger = nullptr;     // For passing to LogManager
+    SceneManager *sceneManager = nullptr;
+    ScriptManager *scriptManager = nullptr;
+    ViewManager *viewManager = nullptr;
+    RuntimeRoot defaultRoot;
 };

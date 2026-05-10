@@ -23,6 +23,7 @@ bool SceneGraph::setRoot(Element *Root)
     }
     this->root = Root;
     root->setParent(nullptr);
+    root->setSceneGraph(this);
     
     return true;
 }

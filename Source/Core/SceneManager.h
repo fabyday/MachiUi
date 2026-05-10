@@ -50,6 +50,8 @@ public:
     Element *createElement(const std::string &type);
     void destroyElement(const uint64_t Id);
     void AppendElement(const uint64_t parentId, const uint64_t childId);
+    void InsertElementBefore(const uint64_t parentId, const uint64_t childId, const uint64_t beforeChildId);
+    void RemoveElement(const uint64_t parentId, const uint64_t childId);
     void destroyAllChildren(const uint64_t Id);
     Element *getElement(const uint64_t Id);
 

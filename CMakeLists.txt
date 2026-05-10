@@ -87,6 +87,7 @@ add_custom_command(TARGET test2 POST_BUILD
 
 if(BUILD_TEST)
     message("build test...")
+    enable_testing()
     add_subdirectory(Test)
 endif()
 

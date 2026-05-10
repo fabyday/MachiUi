@@ -40,3 +40,8 @@ addTest(MachiUiTests
     MACHIUI_TEST_LIB
 )
 
+addTest(ReconcilerMountTest
+    Scripting/ReconcilerMountTest.cpp
+    MACHIUI_TEST_LIB
+)
+

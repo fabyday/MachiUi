@@ -35,16 +35,12 @@ void DefaultTimer::tick()
   if (_isPaused)
   {
     _deltaTime = 0.0;
-    this->_totalActiveTime += frameDiff;
   }
   else
   {
-    auto deltaSec = frameDiff;
-    // this->_deltaTime = deltaSec.count();
-
-    this->_totalActiveTime += deltaSec;
-    // std::chrono::duration_cast<std::chrono::milliseconds>(frameDiff)
-    //     .count();
+    _deltaTime = NsToSec(frameDiff);
+    _totalActiveTime += _deltaTime;
+    totalMS += static_cast<uint64_t>(NsToMs(frameDiff));
   }
 
   _lastTickTime = currentTime;

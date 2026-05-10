@@ -1,6 +1,8 @@
 #pragma once
+#include <cstdint>
 
 typedef void *MachiUiWindowHandle;
+using MachiWindowId = uint64_t;
 
 struct Color
 {
@@ -94,6 +96,20 @@ struct MouseEvent
 struct MouseWheelEvent
 {
     float delta;
+};
+
+struct WindowEvent
+{
+    enum class Type
+    {
+        Close,
+        Resize,
+        FocusGained,
+        FocusLost
+    } type;
+
+    uint32_t width = 0;
+    uint32_t height = 0;
 };
 
 // Nah... I don't implement touch event for now, since it's not a priority,

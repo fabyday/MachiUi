@@ -12,7 +12,7 @@
  *
  */
 
-inline uint64_t computeHash(const std::string_view str)
+constexpr uint64_t compileTimeHash(std::string_view str)
 {
     // FNV-1a hash algorithm
     constexpr uint64_t prime = 1099511628211ULL;
@@ -28,11 +28,6 @@ inline uint64_t computeHash(const std::string_view str)
     return hash;
 }
 
-constexpr uint64_t compileTimeHash(std::string_view str)
-{
-    return computeHash(str);
-}
-
 constexpr uint64_t compileTimeHash(const std::string &str)
 {
     return compileTimeHash(std::string_view(str));
@@ -43,15 +38,4 @@ constexpr uint64_t compileTimeHash(const char *str)
     return compileTimeHash(std::string_view(str));
 }
 
-uint64_t runtimeHash(const std::string &str)
-{
-    return computeHash(str);
-}
-
-uint64_t runtimeHash(const char *str)
-{
-    return computeHash(str);
-}
-
-#define MachiCompileTimeHash(x) compileTimeHash(x)
-#define MachiSafeHash(x) runtimeHash(x)
+#define MachiHash(x) compileTimeHash(x)

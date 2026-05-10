@@ -1,6 +1,8 @@
 #pragma once
 #include "../Core/IService.h"
 #include "RenderQueue.h"
+#include "../Common/typedef.h"
+#include <cstdint>
 
 class IRenderer : public IService
 {
@@ -15,6 +17,8 @@ public:
    * and Renderer will execute these commands in its own timing.
    */
   virtual void enqueueRenderCommand(const RenderCommand &cmd) = 0;
+
+  virtual void attachScene(uint64_t sceneGraphId, ViewId viewId) {}
 
   virtual void execute() = 0;
 };

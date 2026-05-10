@@ -1,4 +1,3 @@
-#include <Windows.h>
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -20,8 +19,9 @@
 class Win32Window : public IWindow
 {
 public:
-    Win32Window();          // <--- 선언 추가
-    virtual ~Win32Window(); // <--- 선언 추가 (IWindow가 가상이므로 가상 소멸자 권장)
+    Win32Window();
+    virtual ~Win32Window();
+
     bool init(const std::string &title, uint32_t width, uint32_t height) override;
     void update() override;
     void close() override;
@@ -29,26 +29,18 @@ public:
     void hide() override;
     bool shouldClose() const override;
 
-    virtual void setBorderless(bool use) override;
-    virtual void setTitle(const std::string &title) override;
-
-    virtual NativeHandle getNativeHandle() const override;
+    void setBorderless(bool use) override;
+    void setTitle(const std::string &title) override;
+    NativeHandle getNativeHandle() const override;
 
     void setHWND(HWND hwnd);
     HWND getHWND();
 
 private:
-    HWND hwnd; // Win32 창 핸들
+    HWND hwnd;
 };
 
-void Win32Window::setBorderless(bool use)
-{
-}
-
-void Win32Window::setTitle(const std::string &title)
-{
-    SetWindowText(hwnd, title.c_str());
-}
+static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 Win32Window::Win32Window() : hwnd(nullptr)
 {
@@ -59,42 +51,46 @@ Win32Window::~Win32Window()
     close();
 }
 
+bool Win32Window::init(const std::string &title, uint32_t width, uint32_t height)
+{
+    return true;
+}
+
+void Win32Window::update()
+{
+}
+
+void Win32Window::close()
+{
+    if (hwnd != nullptr)
+    {
+        DestroyWindow(hwnd);
+        hwnd = nullptr;
+    }
+}
+
 void Win32Window::show()
 {
     ShowWindow(hwnd, SW_SHOWDEFAULT);
 }
+
 void Win32Window::hide()
 {
     ShowWindow(hwnd, SW_HIDE);
 }
 
-bool Win32Window::init(const std::string &title, uint32_t width, uint32_t height)
-{
-    width = width;
-    height = height;
-    return true;
-}
-void Win32Window::setHWND(HWND hwnd)
-{
-    this->hwnd = hwnd;
-}
-HWND Win32Window::getHWND()
-{
-    return hwnd;
-}
-
-/// @brief update Calls and msgs
-void Win32Window::update()
-{
-}
-void Win32Window::close()
-{
-    DestroyWindow(hwnd);
-}
 bool Win32Window::shouldClose() const
 {
-
     return false;
+}
+
+void Win32Window::setBorderless(bool use)
+{
+}
+
+void Win32Window::setTitle(const std::string &title)
+{
+    SetWindowText(hwnd, title.c_str());
 }
 
 IWindow::NativeHandle Win32Window::getNativeHandle() const
@@ -102,19 +98,25 @@ IWindow::NativeHandle Win32Window::getNativeHandle() const
     return hwnd;
 }
 
-static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+void Win32Window::setHWND(HWND hwnd)
+{
+    this->hwnd = hwnd;
+}
+
+HWND Win32Window::getHWND()
+{
+    return hwnd;
+}
 
 IWindow *createWindow()
 {
-    Win32Window *win = new Win32Window();
+    auto *win = new Win32Window();
 
-    // 1. 창 클래스 등록 (한 번만 하면 되지만, 보통 헬퍼가 관리)
     WNDCLASSEXW wc = {sizeof(WNDCLASSEXW), CS_CLASSDC, WndProc, 0L, 0L,
                       GetModuleHandle(NULL), NULL, NULL, NULL, NULL,
                       MACHI_WINDOW_CLASS_NAME, NULL};
     RegisterClassExW(&wc);
 
-    // 2. 창 생성 (this를 마지막 인자로 넘겨 WndProc에서 낚아챕니다)
     HWND hwnd = CreateWindowExW(0, MACHI_WINDOW_CLASS_NAME, nullptr,
                                 WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
                                 NULL, NULL, GetModuleHandle(NULL), win);
@@ -127,84 +129,151 @@ IWindow *createWindow()
     }
 
     return win;
-    // ShowWindow(hwnd, SW_SHOWDEFAULT);
 }
 
-void handleWindowEvent(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+static bool isKeyDown(int virtualKey)
 {
-    // 창 이벤트 처리 로직 (예: 크기 변경, 포커스 등)
+    return (GetKeyState(virtualKey) & 0x8000) != 0;
+}
+
+static KeyEvent makeKeyEvent(WPARAM wParam, bool isPressed)
+{
+    return KeyEvent{
+        static_cast<int>(wParam),
+        isPressed,
+        isKeyDown(VK_MENU),
+        isKeyDown(VK_CONTROL),
+        isKeyDown(VK_SHIFT),
+        isKeyDown(VK_LWIN) || isKeyDown(VK_RWIN)};
+}
+
+static MouseEvent makeMouseEvent(LPARAM lParam, MouseButton button, bool isPressed)
+{
+    return MouseEvent{
+        static_cast<float>(static_cast<short>(LOWORD(lParam))),
+        static_cast<float>(static_cast<short>(HIWORD(lParam))),
+        button,
+        isPressed};
+}
+
+static void handleWindowEvent(IWindow *targetWindow, HWND, UINT message, WPARAM, LPARAM lParam)
+{
+    if (targetWindow == nullptr || targetWindow->inputManager == nullptr)
+    {
+        return;
+    }
+
     switch (message)
     {
     case WM_SIZE:
-        // 창 크기 변경 처리
+        targetWindow->inputManager->emitWindowEvent(WindowEvent{
+            WindowEvent::Type::Resize,
+            static_cast<uint32_t>(LOWORD(lParam)),
+            static_cast<uint32_t>(HIWORD(lParam))});
         break;
     case WM_SETFOCUS:
-        // 창이 포커스를 얻었을 때 처리
+        targetWindow->inputManager->emitWindowEvent(WindowEvent{WindowEvent::Type::FocusGained});
         break;
     case WM_KILLFOCUS:
-        // 창이 포커스를 잃었을 때 처리
+        targetWindow->inputManager->emitWindowEvent(WindowEvent{WindowEvent::Type::FocusLost});
+        break;
+    case WM_CLOSE:
+        targetWindow->inputManager->emitWindowEvent(WindowEvent{WindowEvent::Type::Close});
         break;
     default:
-        return;
-    }
-}
-void handleInputEvent(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    // 입력 이벤트 처리 로직 (예: 키보드, 마우스 입력 등)
-    switch (message)
-    {
-    case WM_KEYDOWN:
-        // 키가 눌렸을 때 처리
         break;
-    case WM_KEYUP:
-        // 키가 떼졌을 때 처리
-        break;
-    case WM_MOUSEMOVE:
-        // 마우스 이동 처리
-        break;
-    case WM_LBUTTONDOWN:
-        // 왼쪽 마우스 버튼이 눌렸을 때 처리
-        break;
-    case WM_LBUTTONUP:
-        // 왼쪽 마우스 버튼이 떼졌을 때 처리
-        break;
-    default:
-        return;
     }
 }
 
-bool translateMessage2IMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+static void handleInputEvent(IWindow *targetWindow, HWND, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    // 메시지 분류 및 처리
+    if (targetWindow == nullptr || targetWindow->inputManager == nullptr)
+    {
+        return;
+    }
+
+    switch (message)
+    {
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN:
+        targetWindow->inputManager->emitKeyEvent(makeKeyEvent(wParam, true));
+        break;
+    case WM_KEYUP:
+    case WM_SYSKEYUP:
+        targetWindow->inputManager->emitKeyEvent(makeKeyEvent(wParam, false));
+        break;
+    case WM_MOUSEMOVE:
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Left, false));
+        break;
+    case WM_LBUTTONDOWN:
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Left, true));
+        break;
+    case WM_LBUTTONUP:
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Left, false));
+        break;
+    case WM_MBUTTONDOWN:
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Middle, true));
+        break;
+    case WM_MBUTTONUP:
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Middle, false));
+        break;
+    case WM_RBUTTONDOWN:
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Right, true));
+        break;
+    case WM_RBUTTONUP:
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Right, false));
+        break;
+    case WM_MOUSEWHEEL:
+        targetWindow->inputManager->emitMouseWheelEvent(MouseWheelEvent{
+            static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam)) / static_cast<float>(WHEEL_DELTA)});
+        break;
+    default:
+        break;
+    }
+}
+
+static bool translateMessage2IMessage(IWindow *targetWindow, HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
     switch (message)
     {
     case WM_SIZE:
     case WM_SETFOCUS:
     case WM_KILLFOCUS:
-        handleWindowEvent(hwnd, message, wParam, lParam);
-        return true; // 메시지가 처리되었음을 나타냄
+    case WM_CLOSE:
+        handleWindowEvent(targetWindow, hwnd, message, wParam, lParam);
+        return true;
     case WM_KEYDOWN:
+    case WM_SYSKEYDOWN:
     case WM_KEYUP:
+    case WM_SYSKEYUP:
     case WM_MOUSEMOVE:
     case WM_LBUTTONDOWN:
     case WM_LBUTTONUP:
-        handleInputEvent(hwnd, message, wParam, lParam);
-        return true; // 메시지가 처리되었음을 나타냄
+    case WM_MBUTTONDOWN:
+    case WM_MBUTTONUP:
+    case WM_RBUTTONDOWN:
+    case WM_RBUTTONUP:
+    case WM_MOUSEWHEEL:
+        handleInputEvent(targetWindow, hwnd, message, wParam, lParam);
+        return true;
     default:
-        return false; // 메시지가 처리되지 않았음을 나타냄
+        return false;
     }
 }
 
-// window callbacks
-/**
- * System Input( win32 or Mac )
- */
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    if (message == WM_NCCREATE)
+    {
+        auto *createStruct = reinterpret_cast<CREATESTRUCT *>(lParam);
+        auto *createdWindow = static_cast<IWindow *>(createStruct->lpCreateParams);
+        SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(createdWindow));
+    }
 
     IWindow *targetWindow = reinterpret_cast<IWindow *>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
-    if (translateMessage2IMessage(hwnd, message, wParam, lParam))
+    if (translateMessage2IMessage(targetWindow, hwnd, message, wParam, lParam))
     {
     }
+
     return DefWindowProc(hwnd, message, wParam, lParam);
 }

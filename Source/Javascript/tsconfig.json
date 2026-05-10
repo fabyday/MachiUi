@@ -1,12 +1,12 @@
 {
-"compilerOptions": {
-    "target": "ES2020", 
+  "compilerOptions": {
+    "target": "ES2020",
     "module": "ESNext",
-    "jsx": "react", // 혹은 "react-jsx" (React 17+ 사용 시)
+    "jsx": "react",
     "moduleResolution": "node",
-    "lib": ["ES2020"], // DOM 관련 라이브러리(dom, dom.iterable)는 제거하세요. (QuickJS엔 document가 없음)
+    "lib": ["ES2020"],
     "allowSyntheticDefaultImports": true,
-    "sourceMap": true,  
+    "sourceMap": true,
     "esModuleInterop": true
   },
   "ts-node": {
@@ -15,11 +15,9 @@
     "transpileOnly": true,
     "experimentalSpecifierResolution": "node",
     "compilerOptions": {
-      "module": "ESNext" // webpack-cli 최신 버전은 ESM 설정을 지원합니다.
+      "module": "ESNext"
     }
   },
-  "files": [
-    "./Native/native.d.ts" // Source/Source가 되지 않도록 경로 수정
-  ],
-  "include": ["./webpack.config.ts", "./Javascript/**/*"]
+  "files": ["./Native/native.d.ts"],
+  "include": ["./webpack.config.ts", "./Reconciler/**/*", "./Native/**/*"]
 }

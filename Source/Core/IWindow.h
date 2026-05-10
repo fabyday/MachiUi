@@ -6,7 +6,7 @@ class IWindow
 {
 public:
     using NativeHandle = void *;
-    InputManager *inputManager;
+    InputManager *inputManager = nullptr;
 
     virtual ~IWindow() = default;
     // --- 생명 주기 및 제어 ---

@@ -9,6 +9,8 @@
 #include "ClassRegistry.h"
 #include "../Core/LogManager.h"
 #include "../Core/ILogger.h"
+#include <climits>
+#include <cstdint>
 
 #if __cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L)
 // C++20 이상
@@ -213,7 +215,8 @@ static JSValue js_console_log(JSContext *ctx, JSValueConst func, int argc, JSVal
     return JS_UNDEFINED;
 }
 
-static JSValue js_create_root(JSContext *ctx, JSValueConst this_val,
+#if 0
+static JSValue js_create_root_old(JSContext *ctx, JSValueConst this_val,
                               int argc, JSValueConst *argv)
 {
     ScriptManager *sm = static_cast<ScriptManager *>(JS_GetContextOpaque(ctx));
@@ -234,6 +237,58 @@ static JSValue js_create_root(JSContext *ctx, JSValueConst this_val,
     JSValue rootObj = JS_NewObjectClass(ctx, classId);
     JS_SetPropertyStr(ctx, rootObj, "_containerId", JS_NewBigUint64(ctx, containerId));
     return rootObj;
+}
+
+#endif
+
+static JSValue js_create_root(JSContext *ctx, JSValueConst this_val,
+                              int argc, JSValueConst *argv)
+{
+    ScriptManager *sm = static_cast<ScriptManager *>(JS_GetContextOpaque(ctx));
+    if (!sm || !sm->getSceneManager())
+    {
+        return JS_EXCEPTION;
+    }
+
+    SceneManager *sceneManager = sm->getSceneManager();
+    SceneGraph *graph = nullptr;
+
+    ScriptExecutionContext *activeContext = sm->getActiveContext();
+    if (activeContext != nullptr)
+    {
+        graph = activeContext->defaultSceneGraph;
+    }
+
+    if (graph == nullptr)
+    {
+        const char *sceneName = nullptr;
+        if (argc > 0 && !JS_IsUndefined(argv[0]) && !JS_IsNull(argv[0]))
+        {
+            sceneName = JS_ToCString(ctx, argv[0]);
+        }
+
+        uint64_t sceneGraphId = sceneManager->createSceneGraph(sceneName != nullptr ? sceneName : "DefaultScene");
+        if (sceneName != nullptr)
+        {
+            JS_FreeCString(ctx, sceneName);
+        }
+        graph = sceneManager->getSceneGraph(sceneGraphId);
+    }
+
+    if (graph == nullptr)
+    {
+        return JS_ThrowInternalError(ctx, "Failed to create scene graph");
+    }
+
+    if (graph->getRoot() == nullptr)
+    {
+        if (!sceneManager->createRoot(graph->getUid()))
+        {
+            return JS_ThrowInternalError(ctx, "Failed to create root element");
+        }
+    }
+
+    return JS_NewBigUint64(ctx, graph->getRoot()->getUid());
 }
 
 // create element like div, span, etc.
@@ -274,8 +329,12 @@ static JSValue js_root_render(JSContext *ctx, JSValueConst this_val,
 
 static JSValue js_append_child(JSContext *ctx, JSValueConst this_val,
                                int argc, JSValueConst *argv);
+static JSValue js_insert_before(JSContext *ctx, JSValueConst this_val,
+                                int argc, JSValueConst *argv);
 static JSValue js_remove_child(JSContext *ctx, JSValueConst this_val,
                                int argc, JSValueConst *argv);
+static JSValue js_clear_children(JSContext *ctx, JSValueConst this_val,
+                                 int argc, JSValueConst *argv);
 static JSValue js_element_set_style(JSContext *ctx, JSValueConst this_val,
                                     int argc, JSValueConst *argv);
 static JSValue js_update_props(JSContext *ctx, JSValueConst this_val,
@@ -302,23 +361,42 @@ static const JSCFunctionListEntry root_funcs[] = {
     MACHI_JS_CFUNC_DEF("render", 1, js_root_render),
 };
 
+static bool js_read_element_id(JSContext *ctx, JSValueConst value, uint64_t &id)
+{
+    id = 0;
+    return JS_ToBigUint64(ctx, &id, value) == 0;
+}
+
 static JSValue js_root_render(JSContext *ctx, JSValueConst this_val,
                               int argc, JSValueConst *argv)
 {
-    JSValue containerValue = JS_GetPropertyStr(ctx, this_val, "_containerId");
-    uint64_t containerId = 0;
-    uint64_t childId;
-    JS_ToBigUint64(ctx, &childId, argv[0]);
-
     ScriptManager *sm = static_cast<ScriptManager *>(JS_GetContextOpaque(ctx));
     if (!sm || !sm->getSceneManager())
     {
         return JS_EXCEPTION;
     }
 
-    SceneManager *sceneManager = sm->getSceneManager();
-    SceneGraph *graph = sceneManager->getSceneGraph(containerId);
-    sceneManager->destroyAllChildren(containerId);
+    uint64_t containerId = 0;
+    if (JS_IsObject(this_val))
+    {
+        JSValue containerValue = JS_GetPropertyStr(ctx, this_val, "_containerId");
+        js_read_element_id(ctx, containerValue, containerId);
+        JS_FreeValue(ctx, containerValue);
+    }
+
+    uint64_t childId = 0;
+    if (argc > 0)
+    {
+        js_read_element_id(ctx, argv[0], childId);
+    }
+
+    if (containerId == 0 || childId == 0)
+    {
+        return JS_ThrowInternalError(ctx, "Root render expects a valid container and child id");
+    }
+
+    sm->getSceneManager()->destroyAllChildren(containerId);
+    sm->getSceneManager()->AppendElement(containerId, childId);
     return JS_UNDEFINED;
 }
 
@@ -331,24 +409,76 @@ static JSValue js_append_child(JSContext *ctx, JSValueConst this_val,
     {
         return JS_EXCEPTION;
     }
-    SceneManager *sceneManager = sm->getSceneManager();
-    if (parentId == 0 && childId == 0)
+
+    if (argc < 2 || !js_read_element_id(ctx, argv[0], parentId) || !js_read_element_id(ctx, argv[1], childId) ||
+        parentId == 0 || childId == 0)
     {
-        return JS_ThrowInternalError(ctx, "Element not found. ID Might be invalid");
+        return JS_ThrowInternalError(ctx, "appendChild expects valid parent and child ids");
     }
 
-    sceneManager->AppendElement(parentId, childId);
+    sm->getSceneManager()->AppendElement(parentId, childId);
 
     return JS_UNDEFINED;
 }
 
-// removeChild function
+static JSValue js_insert_before(JSContext *ctx, JSValueConst this_val,
+                                int argc, JSValueConst *argv)
+{
+    uint64_t parentId = 0, childId = 0, beforeChildId = 0;
+    ScriptManager *sm = static_cast<ScriptManager *>(JS_GetContextOpaque(ctx));
+    if (!sm || !sm->getSceneManager())
+    {
+        return JS_EXCEPTION;
+    }
+
+    if (argc < 3 || !js_read_element_id(ctx, argv[0], parentId) || !js_read_element_id(ctx, argv[1], childId) ||
+        !js_read_element_id(ctx, argv[2], beforeChildId) || parentId == 0 || childId == 0)
+    {
+        return JS_ThrowInternalError(ctx, "insertBefore expects valid parent, child, and beforeChild ids");
+    }
+
+    sm->getSceneManager()->InsertElementBefore(parentId, childId, beforeChildId);
+    return JS_UNDEFINED;
+}
+
 static JSValue js_remove_child(JSContext *ctx, JSValueConst this_val,
                                int argc, JSValueConst *argv)
 {
+    uint64_t parentId = 0, childId = 0;
+    ScriptManager *sm = static_cast<ScriptManager *>(JS_GetContextOpaque(ctx));
+    if (!sm || !sm->getSceneManager())
+    {
+        return JS_EXCEPTION;
+    }
 
+    if (argc < 2 || !js_read_element_id(ctx, argv[0], parentId) || !js_read_element_id(ctx, argv[1], childId) ||
+        parentId == 0 || childId == 0)
+    {
+        return JS_ThrowInternalError(ctx, "removeChild expects valid parent and child ids");
+    }
+
+    sm->getSceneManager()->RemoveElement(parentId, childId);
     return JS_UNDEFINED;
-};
+}
+
+static JSValue js_clear_children(JSContext *ctx, JSValueConst this_val,
+                                 int argc, JSValueConst *argv)
+{
+    uint64_t parentId = 0;
+    ScriptManager *sm = static_cast<ScriptManager *>(JS_GetContextOpaque(ctx));
+    if (!sm || !sm->getSceneManager())
+    {
+        return JS_EXCEPTION;
+    }
+
+    if (argc < 1 || !js_read_element_id(ctx, argv[0], parentId) || parentId == 0)
+    {
+        return JS_ThrowInternalError(ctx, "clearChildren expects a valid parent id");
+    }
+
+    sm->getSceneManager()->destroyAllChildren(parentId);
+    return JS_UNDEFINED;
+}
 
 // TODO REMOVE THIS FUNCTION and DEFINITION
 static JSValue js_element_set_style(JSContext *ctx, JSValueConst this_val,
@@ -361,8 +491,11 @@ static JSValue js_element_set_style(JSContext *ctx, JSValueConst this_val,
 // helperFunction
 Element::AttrValue ToElementAttributeValue(JSContext *context, JSValue value)
 {
-
-    if (JS_IsBool(value))
+    if (JS_IsNull(value) || JS_IsUndefined(value))
+    {
+        return std::monostate();
+    }
+    else if (JS_IsBool(value))
     {
         return static_cast<bool>(JS_ToBool(context, value));
     }
@@ -416,14 +549,20 @@ static JSValue js_update_props(JSContext *ctx, JSValueConst this_val,
         //
         return JS_EXCEPTION;
     }
-    int64_t ptr;
-    JS_ToInt64(ctx, &ptr, argv[0]);
-    Element *element = reinterpret_cast<Element *>(ptr);
+    uint64_t elementId = 0;
+    if (!js_read_element_id(ctx, argv[0], elementId) || elementId == 0)
+    {
+        return JS_ThrowInternalError(ctx, "updateProps expects a valid element id");
+    }
 
     const char *key = JS_ToCString(ctx, argv[1]);
+    if (key == nullptr)
+    {
+        return JS_EXCEPTION;
+    }
 
     auto value = ToElementAttributeValue(ctx, argv[2]);
-    // element->ApplyAttributes(key, value);
+    sceneManager->updateAttribute(elementId, key, value);
 
     JS_FreeCString(ctx, key);
     return JS_UNDEFINED;
@@ -433,13 +572,60 @@ static JSValue js_update_props(JSContext *ctx, JSValueConst this_val,
 static JSValue js_create_text_node(JSContext *ctx, JSValueConst this_val,
                                    int argc, JSValueConst *argv)
 {
+    ScriptManager *sm = static_cast<ScriptManager *>(JS_GetContextOpaque(ctx));
+    if (!sm || !sm->getSceneManager())
+    {
+        return JS_EXCEPTION;
+    }
 
-    return JS_UNDEFINED;
+    const char *text = nullptr;
+    std::string textValue;
+    if (argc > 0 && !JS_IsUndefined(argv[0]) && !JS_IsNull(argv[0]))
+    {
+        text = JS_ToCString(ctx, argv[0]);
+        if (text == nullptr)
+        {
+            return JS_EXCEPTION;
+        }
+        textValue = text;
+        JS_FreeCString(ctx, text);
+    }
+
+    Element *element = sm->getSceneManager()->createElement("text");
+    if (element == nullptr)
+    {
+        return JS_ThrowInternalError(ctx, "Failed to create text node");
+    }
+
+    element->ApplyAttributes("text", textValue);
+    JSValue result = JS_NewBigUint64(ctx, element->getUid());
+
+    return result;
 }
+
 static JSValue js_update_text(JSContext *ctx, JSValueConst this_val,
                               int argc, JSValueConst *argv)
 {
+    ScriptManager *sm = static_cast<ScriptManager *>(JS_GetContextOpaque(ctx));
+    if (!sm || !sm->getSceneManager())
+    {
+        return JS_EXCEPTION;
+    }
 
+    uint64_t elementId = 0;
+    if (argc < 2 || !js_read_element_id(ctx, argv[0], elementId) || elementId == 0)
+    {
+        return JS_ThrowInternalError(ctx, "updateText expects a valid text node id and text");
+    }
+
+    const char *text = JS_ToCString(ctx, argv[1]);
+    if (text == nullptr)
+    {
+        return JS_EXCEPTION;
+    }
+
+    sm->getSceneManager()->updateAttribute(elementId, "text", std::string(text));
+    JS_FreeCString(ctx, text);
     return JS_UNDEFINED;
 }
 
@@ -484,14 +670,18 @@ void register_default_elements(JSContext *ctx)
 void register_native_method(JSContext *ctx)
 {
     JSValue native = JS_NewObject(ctx);
-    JS_SetPropertyStr(ctx, native, "createElement", JS_NewCFunction(ctx, js_create_element, "createElement", 2));
-    JS_SetPropertyStr(ctx, native, "createRoot", JS_NewCFunction(ctx, js_create_root, "createRoot", 2));
+    JS_SetPropertyStr(ctx, native, "createElement", JS_NewCFunction(ctx, js_create_element, "createElement", 1));
+    JS_SetPropertyStr(ctx, native, "createRoot", JS_NewCFunction(ctx, js_create_root, "createRoot", 1));
     JS_SetPropertyStr(ctx, native, "appendChild", JS_NewCFunction(ctx, js_append_child, "appendChild", 2));
+    JS_SetPropertyStr(ctx, native, "insertBefore", JS_NewCFunction(ctx, js_insert_before, "insertBefore", 3));
     JS_SetPropertyStr(ctx, native, "removeChild", JS_NewCFunction(ctx, js_remove_child, "removeChild", 2));
-    JS_SetPropertyStr(ctx, native, "updateProps", JS_NewCFunction(ctx, js_update_props, "updateProps", 2));
-    JS_SetPropertyStr(ctx, native, "createTextNode", JS_NewCFunction(ctx, js_create_text_node, "createTextNode", 2));
+    JS_SetPropertyStr(ctx, native, "clearChildren", JS_NewCFunction(ctx, js_clear_children, "clearChildren", 1));
+    JS_SetPropertyStr(ctx, native, "updateProps", JS_NewCFunction(ctx, js_update_props, "updateProps", 3));
+    JS_SetPropertyStr(ctx, native, "createTextNode", JS_NewCFunction(ctx, js_create_text_node, "createTextNode", 1));
     JS_SetPropertyStr(ctx, native, "updateText", JS_NewCFunction(ctx, js_update_text, "updateText", 2));
 
     register_default_elements(ctx);
-    JS_SetPropertyStr(ctx, JS_GetGlobalObject(ctx), "MachiNative", native);
+    JSValue global = JS_GetGlobalObject(ctx);
+    JS_SetPropertyStr(ctx, global, "MachiNative", native);
+    JS_FreeValue(ctx, global);
 }

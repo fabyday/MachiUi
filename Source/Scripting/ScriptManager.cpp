@@ -88,6 +88,28 @@ void ScriptManager::ExecuteModule(const std::string &modulePath)
         ScriptExecutionContext *context = new ScriptExecutionContext{defaultSceneGraph, {}};
         ContextGuard guard(this, context);
         m_pImpl->run(*code, modulePath, true);
+        delete context;
+    }
+}
+
+void ScriptManager::ExecuteModule(const std::string &modulePath, uint64_t sceneGraphId)
+{
+    if (!m_fileLoader || !m_sceneManager)
+    {
+        return;
+    }
+
+    if (auto code = m_fileLoader->readFile(modulePath))
+    {
+        SceneGraph *defaultSceneGraph = m_sceneManager->getSceneGraph(sceneGraphId);
+        if (defaultSceneGraph == nullptr)
+        {
+            return;
+        }
+
+        ScriptExecutionContext context{defaultSceneGraph, {}};
+        ContextGuard guard(this, &context);
+        m_pImpl->run(*code, modulePath, true);
     }
 }
 
@@ -106,6 +128,11 @@ void ScriptManager::popContext()
 
 ScriptExecutionContext *ScriptManager::getActiveContext()
 {
+    if (ScriptExecutionContextStack.empty())
+    {
+        return nullptr;
+    }
+
     return ScriptExecutionContextStack.back();
 }
 

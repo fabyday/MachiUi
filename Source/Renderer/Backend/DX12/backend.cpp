@@ -2,6 +2,9 @@
 #include "Core/UiEngine.h"
 #include "Core/ServiceRegistry.h"
 #include "Core/ViewManger.h"
+#include "Core/SceneGraph.h"
+#include "Core/SceneManager.h"
+#include "Core/Element.h"
 #include "Common/macro.h"
 #include "Renderer/IRenderer.h"
 #include "Renderer/RenderQueue.h"
@@ -17,9 +20,13 @@
 #endif
 
 #include <Windows.h>
+#include <algorithm>
+#include <cctype>
 #include <d3dcompiler.h>
 #include <d3d12.h>
 #include <dxgi1_6.h>
+#include <optional>
+#include <string>
 #include <wrl.h>
 #include <vector>
 using Microsoft::WRL::ComPtr;
@@ -65,23 +72,210 @@ class Dx12RendererImpl : public IRenderer
   IWindowHost *winHost;
   UiEngine *engine;
   ViewManager *viewManager;
+  SceneManager *sceneManager;
   Dx12Context dx12Context;
+  std::unordered_map<uint64_t, ViewId> sceneViewMap;
 
 public:
   virtual void onInit(ServiceProvider *engine) override;
 
   virtual void enqueueRenderCommand(const RenderCommand &cmd) override;
+  virtual void attachScene(uint64_t sceneGraphId, ViewId viewId) override;
 
   /// @brief
   /// @param queue
   virtual void execute() override;
 };
 
+static std::string toLower(std::string value)
+{
+  std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c)
+                 { return static_cast<char>(std::tolower(c)); });
+  return value;
+}
+
+static std::optional<std::string> getColorAttribute(Element *element)
+{
+  if (element == nullptr)
+  {
+    return std::nullopt;
+  }
+
+  if (const auto *value = element->getAttribute("color"))
+  {
+    if (const auto *color = std::get_if<std::string>(value))
+    {
+      return *color;
+    }
+  }
+
+  return std::nullopt;
+}
+
+static std::optional<std::string> findColorAttribute(Element *element)
+{
+  auto ownColor = getColorAttribute(element);
+  if (ownColor.has_value())
+  {
+    return ownColor;
+  }
+
+  if (element == nullptr)
+  {
+    return std::nullopt;
+  }
+
+  for (Element *child : element->getChildren())
+  {
+    auto color = findColorAttribute(child);
+    if (color.has_value())
+    {
+      return color;
+    }
+  }
+
+  return std::nullopt;
+}
+
+static COLORREF parseColor(const std::string &color)
+{
+  const std::string normalized = toLower(color);
+  if (normalized == "black")
+  {
+    return RGB(0, 0, 0);
+  }
+  if (normalized == "white")
+  {
+    return RGB(255, 255, 255);
+  }
+  if (normalized == "red")
+  {
+    return RGB(255, 0, 0);
+  }
+  if (normalized == "green")
+  {
+    return RGB(0, 128, 0);
+  }
+  if (normalized == "blue")
+  {
+    return RGB(0, 0, 255);
+  }
+  if (normalized == "yellow" || normalized == "yello")
+  {
+    return RGB(255, 230, 0);
+  }
+  if (normalized == "whilte")
+  {
+    return RGB(255, 255, 255);
+  }
+  if (normalized.size() == 7 && normalized[0] == '#')
+  {
+    try
+    {
+      const int r = std::stoi(normalized.substr(1, 2), nullptr, 16);
+      const int g = std::stoi(normalized.substr(3, 2), nullptr, 16);
+      const int b = std::stoi(normalized.substr(5, 2), nullptr, 16);
+      return RGB(r, g, b);
+    }
+    catch (...)
+    {
+    }
+  }
+
+  return RGB(240, 240, 240);
+}
+
+static void fillRect(HDC dc, const RECT &rect, COLORREF color)
+{
+  HBRUSH brush = CreateSolidBrush(color);
+  FillRect(dc, &rect, brush);
+  DeleteObject(brush);
+}
+
+static RECT insetRect(RECT rect, int inset)
+{
+  rect.left += inset;
+  rect.top += inset;
+  rect.right -= inset;
+  rect.bottom -= inset;
+  if (rect.right < rect.left)
+  {
+    rect.right = rect.left;
+  }
+  if (rect.bottom < rect.top)
+  {
+    rect.bottom = rect.top;
+  }
+  return rect;
+}
+
+static void drawElement(HDC dc, Element *element, RECT rect, int depth)
+{
+  if (element == nullptr)
+  {
+    return;
+  }
+
+  auto color = getColorAttribute(element);
+  if (color.has_value())
+  {
+    fillRect(dc, rect, parseColor(color.value()));
+  }
+
+  const auto &children = element->getChildren();
+  if (children.empty())
+  {
+    return;
+  }
+
+  RECT contentRect = insetRect(rect, depth == 0 ? 0 : 48);
+  const int gap = 18;
+  const int availableHeight = contentRect.bottom - contentRect.top;
+  const int childHeight = children.size() == 1
+                              ? availableHeight
+                              : (availableHeight - gap * static_cast<int>(children.size() - 1)) / static_cast<int>(children.size());
+
+  for (size_t i = 0; i < children.size(); ++i)
+  {
+    RECT childRect = contentRect;
+    childRect.top = contentRect.top + static_cast<int>(i) * (childHeight + gap);
+    childRect.bottom = childRect.top + childHeight;
+    drawElement(dc, children[i], childRect, depth + 1);
+  }
+}
+
+static void drawSceneToWindow(IWindow *window, SceneGraph *graph)
+{
+  if (window == nullptr || window->getNativeHandle() == nullptr)
+  {
+    return;
+  }
+
+  HWND hwnd = static_cast<HWND>(window->getNativeHandle());
+  HDC dc = GetDC(hwnd);
+  if (dc == nullptr)
+  {
+    return;
+  }
+
+  RECT rect;
+  GetClientRect(hwnd, &rect);
+  fillRect(dc, rect, RGB(240, 240, 240));
+
+  if (graph != nullptr)
+  {
+    drawElement(dc, graph->getRoot(), rect, 0);
+  }
+
+  ReleaseDC(hwnd, dc);
+}
+
 void Dx12RendererImpl::onInit(ServiceProvider *provider)
 {
   // this->engine = engine;
   // Get Window Host
   this->viewManager = provider->getService<ViewManager>();
+  this->sceneManager = provider->getService<SceneManager>();
 
   if (!initializeDx12Context(&dx12Context))
   {
@@ -94,8 +288,23 @@ void Dx12RendererImpl::enqueueRenderCommand(const RenderCommand &cmd)
   renderQueue.recordCommand(cmd.target, std::get<Color>(cmd.data));
 }
 
+void Dx12RendererImpl::attachScene(uint64_t sceneGraphId, ViewId viewId)
+{
+  sceneViewMap[sceneGraphId] = viewId;
+}
+
 void Dx12RendererImpl::execute()
 {
+  if (viewManager != nullptr && sceneManager != nullptr)
+  {
+    for (const auto &[sceneGraphId, viewId] : sceneViewMap)
+    {
+      SceneGraph *graph = sceneManager->getSceneGraph(sceneGraphId);
+      IWindow *window = viewManager->getWindowByViewId(viewId);
+      drawSceneToWindow(window, graph);
+    }
+  }
+
   auto commands = renderQueue.GetCommands();
   for (auto cmd : commands)
   {

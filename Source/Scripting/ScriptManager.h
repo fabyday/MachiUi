@@ -34,6 +34,7 @@ public:
     void Execute(const std::string &code);
     void ExecuteFile(const std::string &path);
     void ExecuteModule(const std::string &modulePath);
+    void ExecuteModule(const std::string &modulePath, uint64_t sceneGraphId);
 
     // pendingjob  onUpdate
     void ProcessPendingTasks(double timeBudget);

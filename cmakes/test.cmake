@@ -38,5 +38,7 @@ function(addTest targetName sources engineObject)
 
     # register with GoogleTest so that IDE explorers pick it up
     include(GoogleTest)
-    gtest_discover_tests(${targetName})
+    gtest_discover_tests(${targetName}
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    )
 endfunction()

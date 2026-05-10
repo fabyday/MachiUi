@@ -29,4 +29,5 @@ public:
     }
 
     MOCK_METHOD(IWindow *, requestWindow, (), (override));
+    MOCK_METHOD(void, update, (), (override));
 };

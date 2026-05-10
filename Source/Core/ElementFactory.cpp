@@ -49,6 +49,8 @@ std::unique_ptr<Element> ElementFactory::create(const std::string &type, uint64_
 // Init Basic Elements
 static void initializeBasicElements(ElementFactory *elementFactory)
 {
+    elementFactory->registerElementType("Root", [](uint64_t uid)
+                                        { return std::make_unique<Element>(uid); });
     elementFactory->registerElementType("div", [](uint64_t uid)
                                         { return std::make_unique<DivElement>(uid); });
     elementFactory->registerElementType("img", [](uint64_t uid)

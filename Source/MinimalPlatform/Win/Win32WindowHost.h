@@ -12,6 +12,7 @@ class Win32WindowHost : public IWindowHost
     void *opaque;
     std::vector<IWindow *> winPool;
     TaskScheduler *scheduler;
+    InputManager *inputManager;
 
 public:
     Win32WindowHost();

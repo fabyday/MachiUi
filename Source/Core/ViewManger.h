@@ -26,8 +26,8 @@ struct ViewInfo
 class ViewManager : public IService
 {
 private:
-    IWindowHost *winHost;
-    ILogger *logger;
+    IWindowHost *winHost = nullptr;
+    ILogger *logger = nullptr;
 
     std::unordered_map<ViewId, ViewInfo> viewInfoMap;
     std::unordered_map<ViewId, IWindow *> windowMap;
@@ -50,6 +50,7 @@ public:
     void destroyView(ViewId view);
     ViewId createView(ViewId parent = 0);
     IWindow *getWindowByViewId(ViewId id);
+    ViewInfo *getViewInfo(ViewId id);
 
     // View Controll
     void handleMouseUp(ViewId id, int x, int y);

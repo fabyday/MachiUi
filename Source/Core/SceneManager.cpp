@@ -96,6 +96,11 @@ void SceneManager::destroyElement(const uint64_t Id)
     auto it = objectPool.find(Id);
     if (it != objectPool.end())
     {
+        Element *element = it->second.get();
+        if (element->getParent() != nullptr)
+        {
+            element->getParent()->removeChild(element);
+        }
         objectPool.erase(it);
     }
 }
@@ -114,21 +119,52 @@ void SceneManager::AppendElement(const uint64_t parentId, const uint64_t childId
 {
     Element *parent = this->getElement(parentId);
     Element *child = this->getElement(childId);
-    parent->appendChild(child);
-    // parent->getSceneGraph();
-
-    // this->getSceneGraph();
-
-    // TODO Check SceneGraph is Valid.
-    // if(valid_scene)
+    if (parent == nullptr || child == nullptr)
     {
-        this->dirtyElementLists.push_back(parentId);
+        return;
     }
+
+    parent->appendChild(child);
+    this->dirtyElementLists.push_back(parentId);
+}
+
+void SceneManager::InsertElementBefore(const uint64_t parentId, const uint64_t childId, const uint64_t beforeChildId)
+{
+    Element *parent = this->getElement(parentId);
+    Element *child = this->getElement(childId);
+    Element *beforeChild = this->getElement(beforeChildId);
+    if (parent == nullptr || child == nullptr)
+    {
+        return;
+    }
+
+    parent->insertChildBefore(child, beforeChild);
+    this->dirtyElementLists.push_back(parentId);
+}
+
+void SceneManager::RemoveElement(const uint64_t parentId, const uint64_t childId)
+{
+    Element *parent = this->getElement(parentId);
+    Element *child = this->getElement(childId);
+    if (parent == nullptr || child == nullptr)
+    {
+        return;
+    }
+
+    parent->removeChild(child);
+    this->dirtyElementLists.push_back(parentId);
 }
 
 void SceneManager::destroyAllChildren(const uint64_t Id)
 {
-    // TODO: 구현 필요
+    Element *element = this->getElement(Id);
+    if (element == nullptr)
+    {
+        return;
+    }
+
+    element->removeAllChildren();
+    this->dirtyElementLists.push_back(Id);
 }
 
 void SceneManager::attachElementToGraph(uint64_t graphId, uint64_t elementId)

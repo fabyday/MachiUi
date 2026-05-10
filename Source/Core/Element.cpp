@@ -1,11 +1,18 @@
 #include "Element.h"
+#include <algorithm>
 #include <functional>
+#include <sstream>
 // helper function
 void ApplyDimensionStyle(YGNodeRef node, const std::string &value,
                          void (*pointFunc)(YGNodeRef, float),
                          void (*percentFunc)(YGNodeRef, float),
                          void (*autoFunc)(YGNodeRef))
 {
+    if (value.empty())
+    {
+        return;
+    }
+
     if (value == "auto")
     {
         autoFunc(node);
@@ -39,6 +46,29 @@ std::unordered_map<std::string, StyleFunc> styleMap = {
 
 using AttrFunc = std::function<void(Element *, const Element::AttrValue &)>;
 
+static std::string AttrValueToString(const Element::AttrValue &value)
+{
+    if (const auto *stringValue = std::get_if<std::string>(&value))
+    {
+        return *stringValue;
+    }
+    if (const auto *intValue = std::get_if<int>(&value))
+    {
+        return std::to_string(*intValue);
+    }
+    if (const auto *floatValue = std::get_if<float>(&value))
+    {
+        std::ostringstream stream;
+        stream << *floatValue;
+        return stream.str();
+    }
+    if (const auto *boolValue = std::get_if<bool>(&value))
+    {
+        return *boolValue ? "true" : "false";
+    }
+    return "";
+}
+
 /**
  * 속성 맵: 문자열 키를 멤버 함수에 매핑
  */
@@ -46,7 +76,7 @@ static std::unordered_map<std::string, AttrFunc> attrMap = {
     {"text", [](Element *elem, const Element::AttrValue &value)
      {
          const std::string *valueString = std::get_if<std::string>(&value);
-         elem->setText(*valueString);
+         elem->setText(valueString != nullptr ? *valueString : "");
      }
 
     },
@@ -54,14 +84,14 @@ static std::unordered_map<std::string, AttrFunc> attrMap = {
      {
          const std::string *valueString = std::get_if<std::string>(&value);
 
-         elem->setId(*valueString);
+         elem->setId(valueString != nullptr ? *valueString : "");
      }
 
     },
     {"src", [](Element *elem, const Element::AttrValue &value)
      {
          const std::string *valueString = std::get_if<std::string>(&value);
-         elem->setSrc(*valueString);
+         elem->setSrc(valueString != nullptr ? *valueString : "");
      }
 
     },
@@ -74,7 +104,8 @@ static std::unordered_map<std::string, AttrFunc> attrMap = {
          }
          else
          {
-             elem->setVisible(std::get<bool>(value));
+             const bool *valueBool = std::get_if<bool>(&value);
+             elem->setVisible(valueBool == nullptr ? true : *valueBool);
          }
      }},
 };
@@ -105,6 +136,11 @@ bool StyleApplier::HasKey(const std::string &key)
 
 void StyleApplier::ApplyStyle(YGNodeRef node, const std::string &key, const std::string &value)
 {
+    if (value.empty())
+    {
+        return;
+    }
+
     bool isAuto = (value == "auto");
     bool isPercent = (value.back() == '%');
     float numValue = isPercent ? std::stof(value.substr(0, value.size() - 1)) / 100.0f : std::stof(value);
@@ -167,14 +203,28 @@ void Element::SetProperty(const std::string &key, const std::string &value)
     }
 }
 
+const Element::AttrValue *Element::getAttribute(const std::string &key) const
+{
+    auto it = attributes.find(key);
+    if (it == attributes.end())
+    {
+        return nullptr;
+    }
+
+    return &it->second;
+}
+
 /**
  *
  */
 // void Element::ApplyAttributes(const std::string &key, const std::string &value)
 void Element::ApplyAttributes(const std::string &key, Element::AttrValue value)
 {
-
-    if (AttributeApplier::HasKey(key))
+    if (StyleApplier::HasKey(key))
+    {
+        StyleApplier::ApplyStyle(ygNode, key, AttrValueToString(value));
+    }
+    else if (AttributeApplier::HasKey(key))
     {
         AttributeApplier::ApplyAttribute(this, key, value);
     }
@@ -187,11 +237,86 @@ void Element::ApplyAttributes(const std::string &key, Element::AttrValue value)
 // append Dom Element child
 void Element::appendChild(Element *child)
 {
-    // ownership transfer to children vector
-    children.push_back(child);
-    Element *childPtr = children.back();
+    if (child == nullptr)
+    {
+        return;
+    }
 
-    YGNodeInsertChild(this->ygNode, childPtr->ygNode, YGNodeGetChildCount(this->ygNode));
+    if (child->parent != nullptr)
+    {
+        child->parent->removeChild(child);
+    }
+
+    children.push_back(child);
+    child->setParent(this);
+    child->updateSceneRecursively(sceneGraph);
+
+    YGNodeInsertChild(this->ygNode, child->ygNode, YGNodeGetChildCount(this->ygNode));
+}
+
+void Element::insertChildBefore(Element *child, Element *beforeChild)
+{
+    if (child == nullptr)
+    {
+        return;
+    }
+
+    if (beforeChild == nullptr)
+    {
+        appendChild(child);
+        return;
+    }
+
+    if (child->parent != nullptr)
+    {
+        child->parent->removeChild(child);
+    }
+
+    auto beforeIt = std::find(children.begin(), children.end(), beforeChild);
+    if (beforeIt == children.end())
+    {
+        appendChild(child);
+        return;
+    }
+
+    const auto index = static_cast<uint32_t>(std::distance(children.begin(), beforeIt));
+    children.insert(children.begin() + index, child);
+    child->setParent(this);
+    child->updateSceneRecursively(sceneGraph);
+    YGNodeInsertChild(this->ygNode, child->ygNode, index);
+}
+
+void Element::removeChild(Element *child)
+{
+    if (child == nullptr)
+    {
+        return;
+    }
+
+    auto it = std::find(children.begin(), children.end(), child);
+    if (it == children.end())
+    {
+        return;
+    }
+
+    YGNodeRemoveChild(this->ygNode, child->ygNode);
+    child->setParent(nullptr);
+    child->setSceneGraph(nullptr);
+    children.erase(it);
+}
+
+void Element::removeAllChildren()
+{
+    for (Element *child : children)
+    {
+        if (child != nullptr)
+        {
+            YGNodeRemoveChild(this->ygNode, child->ygNode);
+            child->setParent(nullptr);
+            child->setSceneGraph(nullptr);
+        }
+    }
+    children.clear();
 }
 
 /**
@@ -209,7 +334,7 @@ void Element::updateSceneRecursively(SceneGraph *sceneGraph)
         return;
     }
 
-    // 자식 요소들도 재귀적으로 업데이트
+    this->sceneGraph = sceneGraph;
     for (Element *child : children)
     {
         child->updateSceneRecursively(sceneGraph);

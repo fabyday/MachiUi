@@ -117,10 +117,20 @@ public:
         return dirtyFlag;
     }
 
+    const std::vector<Element *> &getChildren() const
+    {
+        return children;
+    }
+
+    const AttrValue *getAttribute(const std::string &key) const;
+
     virtual void SetProperty(const std::string &key, const std::string &value);
     // virtual void ApplyAttributes(const std::string &key, const std::string &value);
     virtual void ApplyAttributes(const std::string &key, AttrValue value);
     void appendChild(Element *child);
+    void insertChildBefore(Element *child, Element *beforeChild);
+    void removeChild(Element *child);
+    void removeAllChildren();
 
     void updateSceneRecursively(SceneGraph *sceneGraph);
 

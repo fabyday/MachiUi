@@ -23,51 +23,105 @@ bool ViewManager::validate(ViewId id)
     {
         return false;
     }
-    if (!it->second.isWindow)
-    {
-        return this->validate(it->second.parentId);
-    }
 
-    return false;
+    return true;
 }
 
 void ViewManager::attachView(ViewId view, ViewId parent)
 {
+    if (!validate(view) || !validate(parent))
+    {
+        return;
+    }
+
+    viewInfoMap[view].parentId = parent;
+    viewInfoMap[view].isWindow = false;
 }
 
 void ViewManager::detachView(ViewId view)
 {
+    if (!validate(view))
+    {
+        return;
+    }
+
+    viewInfoMap[view].parentId = 0;
 }
 
 void ViewManager::destroyView(ViewId view)
 {
+    auto it = viewInfoMap.find(view);
+    if (it == viewInfoMap.end())
+    {
+        return;
+    }
+
+    it->second.isAlive = false;
+    windowMap.erase(view);
 }
 
 ViewId ViewManager::createView(ViewId parentId)
 {
+    if (parentId > 0 && !validate(parentId))
+    {
+        return 0;
+    }
 
+    ViewId id = generateUniqueId();
     IWindow *targetNativeWindow = nullptr;
 
     if (parentId <= 0)
     {
-        // Create a new native window
-        targetNativeWindow = this->winHost->requestWindow();
-        if (!targetNativeWindow)
+        if (this->winHost != nullptr)
         {
-            logger->LogError("Failed to create a new native window.");
-            return 0; // Invalid ID
+            targetNativeWindow = this->winHost->requestWindow();
+            if (!targetNativeWindow && logger != nullptr)
+            {
+                logger->LogError("Failed to create a new native window.");
+            }
         }
     }
-    else
+
+    viewInfoMap[id] = ViewInfo{
+        id,
+        parentId,
+        targetNativeWindow != nullptr,
+        true};
+
+    if (targetNativeWindow != nullptr)
     {
-
-        if (this->validate(parentId))
-        {
-            // Create a child view (not a window)
-        }
+        windowMap[id] = targetNativeWindow;
     }
 
-    return ViewId();
+    return id;
+}
+
+IWindow *ViewManager::getWindowByViewId(ViewId id)
+{
+    auto windowIt = windowMap.find(id);
+    if (windowIt != windowMap.end())
+    {
+        return windowIt->second;
+    }
+
+    auto viewIt = viewInfoMap.find(id);
+    if (viewIt == viewInfoMap.end() || viewIt->second.parentId == 0)
+    {
+        return nullptr;
+    }
+
+    return getWindowByViewId(viewIt->second.parentId);
+}
+
+ViewInfo *ViewManager::getViewInfo(ViewId id)
+{
+    auto it = viewInfoMap.find(id);
+    if (it == viewInfoMap.end())
+    {
+        return nullptr;
+    }
+
+    return &it->second;
 }
 
 REGISTER_UI_COMPONENT(ViewManager, ServicePhase::Logic)

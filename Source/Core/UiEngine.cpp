@@ -6,6 +6,9 @@
 #include "Core/ServiceInitializer.h"
 #include "Core/ServiceProvider.h"
 #include "Core/InputManager.h"
+#include "Core/SceneManager.h"
+#include "Core/ViewManger.h"
+#include "Scripting/ScriptManager.h"
 #include "Renderer/IRenderer.h" // Assuming IRenderer interface is defined here
 
 void UiEngine::_bootstrapComponent()
@@ -34,18 +37,10 @@ void UiEngine::_initializeIOChannel()
 {
     auto inputManager = this->m_serviceProvider->getService<InputManager>();
 
-    // create default input channel for general use.
-    auto Code = inputManager->createChannel(MachiArgsHashByName("DefaultInputChannel"));
+    auto Code = inputManager->ensureDefaultChannels();
     if (isMachiFailed(Code))
     {
-        std::cerr << "Failed to create DefaultInputChannel: " << Code.msg << std::endl;
-    }
-
-    // create default input channel for window events.
-    Code = inputManager->createChannel(MachiArgsHashByName("WindowEventChannel"));
-    if (isMachiFailed(Code))
-    {
-        std::cerr << "Failed to create WindowEventChannel: " << Code.msg << std::endl;
+        std::cerr << "Failed to initialize input channels: " << Code.msg << std::endl;
     }
 }
 
@@ -74,6 +69,9 @@ void UiEngine::setupFundamentalServices()
 {
     this->windowHost = this->m_serviceProvider->getService<IWindowHost>();
     this->timer = this->m_serviceProvider->getService<ITimer>();
+    this->sceneManager = this->m_serviceProvider->getService<SceneManager>();
+    this->scriptManager = this->m_serviceProvider->getService<ScriptManager>();
+    this->viewManager = this->m_serviceProvider->getService<ViewManager>();
 
     // Assuming IRenderer is also a service
     this->renderer = this->m_serviceProvider->getService<IRenderer>();
@@ -94,8 +92,41 @@ void UiEngine::_updateLayout()
 
 void UiEngine::update(double deltaTime)
 {
-
+    this->windowHost->update();
+    if (this->scriptManager != nullptr)
+    {
+        this->scriptManager->Update();
+    }
     this->_updateLayout();
+    if (this->renderer != nullptr)
+    {
+        this->renderer->execute();
+    }
+}
+
+RuntimeRoot UiEngine::mountScriptView(const std::string &modulePath)
+{
+    if (this->viewManager == nullptr || this->sceneManager == nullptr || this->scriptManager == nullptr || this->renderer == nullptr)
+    {
+        return {};
+    }
+
+    RuntimeRoot root;
+    root.viewId = this->viewManager->createView();
+    if (root.viewId == 0)
+    {
+        return {};
+    }
+
+    root.sceneGraphId = this->sceneManager->createSceneGraph(modulePath);
+    if (root.sceneGraphId == 0 || !this->sceneManager->createRoot(root.sceneGraphId))
+    {
+        return {};
+    }
+
+    this->renderer->attachScene(root.sceneGraphId, root.viewId);
+    this->scriptManager->ExecuteModule(modulePath, root.sceneGraphId);
+    return root;
 }
 
 // StandAlone Mode
@@ -106,7 +137,20 @@ void UiEngine::Run()
     bool running = true;
 
     // TODO : remove this code after implementing the actual main loop with proper exit conditions.
-    IWindow *win = this->windowHost->requestWindow();
+    if (defaultRoot.viewId == 0)
+    {
+        defaultRoot = mountScriptView("assets/TestUI/dist/TestUI.js");
+    }
+
+    IWindow *win = this->viewManager ? this->viewManager->getWindowByViewId(defaultRoot.viewId) : nullptr;
+    if (win == nullptr)
+    {
+        win = this->windowHost->requestWindow();
+    }
+    if (win == nullptr)
+    {
+        return;
+    }
     TaskScheduler *scheduler = this->m_serviceProvider->getService<TaskScheduler>();
 
     win->show();
@@ -117,8 +161,6 @@ void UiEngine::Run()
     {
         // upate timer tick
         this->timer->tick();
-
-        win->update();
         // this->m_serviceProvider->getService<LogManager>()->getLogger()->LogDebug("ticktick");
         this->update(this->timer->getDeltaTime());
 

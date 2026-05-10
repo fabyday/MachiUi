@@ -1,7 +1,7 @@
 #pragma once
 
 #include <variant>
-#include "../Core/Types.h"
+#include "Core/Types.h"
 
 
 
@@ -11,6 +11,5 @@
  */
 struct IMessage
 {
-    
-    std::variant<KeyEvent, MouseButton, MouseWheelEvent, MouseEvent> msg;
+    std::variant<KeyEvent, MouseButton, MouseWheelEvent, MouseEvent, WindowEvent> msg;
 };
