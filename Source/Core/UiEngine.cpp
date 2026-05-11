@@ -10,6 +10,8 @@
 #include "Core/ViewManger.h"
 #include "Scripting/ScriptManager.h"
 #include "Renderer/IRenderer.h" // Assuming IRenderer interface is defined here
+#include <chrono>
+#include <thread>
 
 void UiEngine::_bootstrapComponent()
 {
@@ -157,7 +159,7 @@ void UiEngine::Run()
     win->setTitle("test");
     win->setBorderless(true);
 
-    while (running)
+    while (running && !win->shouldClose())
     {
         // upate timer tick
         this->timer->tick();
@@ -165,9 +167,13 @@ void UiEngine::Run()
         this->update(this->timer->getDeltaTime());
 
         ///
-        // _sleep(10);
         // async tasks
-        scheduler->processReservedTask();
+        if (scheduler != nullptr)
+        {
+            scheduler->processReservedTask();
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
 

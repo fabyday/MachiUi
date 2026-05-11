@@ -87,6 +87,13 @@ enum class MouseButton
 
 struct MouseEvent
 {
+    enum class Type
+    {
+        Move,
+        Down,
+        Up
+    } type = Type::Move;
+
     float x;
     float y;
     MouseButton button;

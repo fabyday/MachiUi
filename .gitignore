@@ -6,7 +6,16 @@ build/**
 *.bak
 
 
+# Generated Doxygen output.
+/Docs/
+
+# Keep the Starlight documentation source tracked.
+!docs/
+!docs/**
+docs/.astro/
+docs/dist/
+docs/node_modules/
+
 # for mac setup 
-Docs
 .DS_Store
 .cache/

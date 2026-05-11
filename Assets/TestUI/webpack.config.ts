@@ -26,6 +26,10 @@ const config: webpack.Configuration = {
     alias: {
       // 소스 폴더를 @src 같은 별칭으로 관리하면 편리합니다
       "@src": path.resolve(__dirname, "."),
+      react: path.resolve(__dirname, "../../Source/Javascript/node_modules/react"),
+      "react/jsx-runtime": path.resolve(__dirname, "../../Source/Javascript/node_modules/react/jsx-runtime.js"),
+      "react-dom": path.resolve(__dirname, "../../Source/Javascript/Reconciler/ReactDomCompat.ts"),
+      "react-dom/client": path.resolve(__dirname, "../../Source/Javascript/Reconciler/ReactDomCompat.ts"),
       "@machi/core": path.resolve(__dirname, "../../Source/javascript"),
     },
   },

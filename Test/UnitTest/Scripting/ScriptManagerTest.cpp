@@ -16,3 +16,16 @@ TEST(ScriptManagerTest, ContextStackPushPop) {
 
     
 }
+
+TEST(ScriptManagerTest, NetworkCapabilityDefaultsToDisabled)
+{
+    ScriptManager sm;
+
+    EXPECT_FALSE(sm.isNetworkEnabled());
+
+    sm.setNetworkEnabled(true);
+    EXPECT_TRUE(sm.isNetworkEnabled());
+
+    sm.setNetworkEnabled(false);
+    EXPECT_FALSE(sm.isNetworkEnabled());
+}

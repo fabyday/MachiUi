@@ -1,5 +1,6 @@
 #include "ScriptManager.h"
 #include "../Core/SceneManager.h"
+#include "../Core/InputManager.h"
 #include "../Core/LogManager.h"
 #include "../Core/ServiceProvider.h"
 struct JSModuleDef;
@@ -34,6 +35,16 @@ void ScriptManager::Update()
 {
 }
 
+void ScriptManager::setNetworkEnabled(bool enabled)
+{
+    m_networkEnabled = enabled;
+}
+
+bool ScriptManager::isNetworkEnabled() const
+{
+    return m_networkEnabled;
+}
+
 void ScriptManager::onInit(ServiceProvider *provider)
 {
 
@@ -45,6 +56,7 @@ void ScriptManager::onInit(ServiceProvider *provider)
     }
 
     this->m_sceneManager = provider->getService<SceneManager>();
+    this->m_inputManager = provider->getService<InputManager>();
     this->logManager = provider->getService<LogManager>();
 }
 

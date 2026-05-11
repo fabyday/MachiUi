@@ -9,6 +9,7 @@
 class SceneManager;
 class SceneGraph;
 class ScriptManager;
+class InputManager;
 
 struct ScriptExecutionContext
 {
@@ -67,7 +68,10 @@ public:
 
     IFIleLoader *GetFileLoader() { return m_fileLoader; }
     SceneManager *getSceneManager() { return m_sceneManager; }
+    InputManager *getInputManager() { return m_inputManager; }
     LogManager *getLogManger() { return logManager; }
+    void setNetworkEnabled(bool enabled);
+    bool isNetworkEnabled() const;
 
 private:
     struct Impl;
@@ -76,5 +80,7 @@ private:
 
     IFIleLoader *m_fileLoader = nullptr;
     SceneManager *m_sceneManager = nullptr;
+    InputManager *m_inputManager = nullptr;
     UiEngine *m_engine = nullptr;
+    bool m_networkEnabled = false;
 };

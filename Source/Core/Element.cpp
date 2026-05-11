@@ -1,8 +1,26 @@
 #include "Element.h"
 #include <algorithm>
+#include <cctype>
 #include <functional>
 #include <sstream>
-// helper function
+
+static std::string ToLower(std::string value)
+{
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c)
+                   { return static_cast<char>(std::tolower(c)); });
+    return value;
+}
+
+static float ParseStyleFloat(const std::string &value)
+{
+    if (value.empty())
+    {
+        return 0.0f;
+    }
+
+    return std::stof(value);
+}
+
 void ApplyDimensionStyle(YGNodeRef node, const std::string &value,
                          void (*pointFunc)(YGNodeRef, float),
                          void (*percentFunc)(YGNodeRef, float),
@@ -28,6 +46,153 @@ void ApplyDimensionStyle(YGNodeRef node, const std::string &value,
         pointFunc(node, pointValue);
     }
 }
+
+static void ApplyOptionalDimensionStyle(YGNodeRef node, const std::string &value,
+                                        void (*pointFunc)(YGNodeRef, float),
+                                        void (*percentFunc)(YGNodeRef, float))
+{
+    if (value.empty() || value == "auto")
+    {
+        return;
+    }
+
+    if (value.back() == '%')
+    {
+        float percentValue = std::stof(value.substr(0, value.size() - 1));
+        percentFunc(node, percentValue);
+    }
+    else
+    {
+        pointFunc(node, ParseStyleFloat(value));
+    }
+}
+
+static void ApplyEdgeStyle(YGNodeRef node, const std::string &value, YGEdge edge,
+                           void (*pointFunc)(YGNodeRef, YGEdge, float),
+                           void (*percentFunc)(YGNodeRef, YGEdge, float))
+{
+    if (value.empty())
+    {
+        return;
+    }
+
+    if (value.back() == '%')
+    {
+        float percentValue = std::stof(value.substr(0, value.size() - 1));
+        percentFunc(node, edge, percentValue);
+    }
+    else
+    {
+        pointFunc(node, edge, ParseStyleFloat(value));
+    }
+}
+
+static YGFlexDirection ParseFlexDirection(const std::string &value)
+{
+    const std::string normalized = ToLower(value);
+    if (normalized == "row")
+    {
+        return YGFlexDirectionRow;
+    }
+    if (normalized == "row-reverse")
+    {
+        return YGFlexDirectionRowReverse;
+    }
+    if (normalized == "column-reverse")
+    {
+        return YGFlexDirectionColumnReverse;
+    }
+    return YGFlexDirectionColumn;
+}
+
+static YGJustify ParseJustify(const std::string &value)
+{
+    const std::string normalized = ToLower(value);
+    if (normalized == "center")
+    {
+        return YGJustifyCenter;
+    }
+    if (normalized == "flex-end")
+    {
+        return YGJustifyFlexEnd;
+    }
+    if (normalized == "space-between")
+    {
+        return YGJustifySpaceBetween;
+    }
+    if (normalized == "space-around")
+    {
+        return YGJustifySpaceAround;
+    }
+    if (normalized == "space-evenly")
+    {
+        return YGJustifySpaceEvenly;
+    }
+    return YGJustifyFlexStart;
+}
+
+static YGAlign ParseAlign(const std::string &value)
+{
+    const std::string normalized = ToLower(value);
+    if (normalized == "auto")
+    {
+        return YGAlignAuto;
+    }
+    if (normalized == "center")
+    {
+        return YGAlignCenter;
+    }
+    if (normalized == "flex-end")
+    {
+        return YGAlignFlexEnd;
+    }
+    if (normalized == "stretch")
+    {
+        return YGAlignStretch;
+    }
+    if (normalized == "baseline")
+    {
+        return YGAlignBaseline;
+    }
+    if (normalized == "space-between")
+    {
+        return YGAlignSpaceBetween;
+    }
+    if (normalized == "space-around")
+    {
+        return YGAlignSpaceAround;
+    }
+    if (normalized == "space-evenly")
+    {
+        return YGAlignSpaceEvenly;
+    }
+    return YGAlignFlexStart;
+}
+
+static YGWrap ParseWrap(const std::string &value)
+{
+    const std::string normalized = ToLower(value);
+    if (normalized == "wrap")
+    {
+        return YGWrapWrap;
+    }
+    if (normalized == "wrap-reverse")
+    {
+        return YGWrapWrapReverse;
+    }
+    return YGWrapNoWrap;
+}
+
+static YGDisplay ParseDisplay(const std::string &value)
+{
+    const std::string normalized = ToLower(value);
+    if (normalized == "none")
+    {
+        return YGDisplayNone;
+    }
+    return YGDisplayFlex;
+}
+
 using StyleFunc = std::function<void(YGNodeRef, const std::string &)>;
 
 std::unordered_map<std::string, StyleFunc> styleMap = {
@@ -39,9 +204,137 @@ std::unordered_map<std::string, StyleFunc> styleMap = {
      {
          ApplyDimensionStyle(n, v, YGNodeStyleSetHeight, YGNodeStyleSetHeightPercent, YGNodeStyleSetHeightAuto);
      }},
+    {"minWidth", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyOptionalDimensionStyle(n, v, YGNodeStyleSetMinWidth, YGNodeStyleSetMinWidthPercent);
+     }},
+    {"minHeight", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyOptionalDimensionStyle(n, v, YGNodeStyleSetMinHeight, YGNodeStyleSetMinHeightPercent);
+     }},
+    {"maxWidth", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyOptionalDimensionStyle(n, v, YGNodeStyleSetMaxWidth, YGNodeStyleSetMaxWidthPercent);
+     }},
+    {"maxHeight", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyOptionalDimensionStyle(n, v, YGNodeStyleSetMaxHeight, YGNodeStyleSetMaxHeightPercent);
+     }},
     {"flexBasis", [](YGNodeRef n, const std::string &v)
      {
          ApplyDimensionStyle(n, v, YGNodeStyleSetFlexBasis, YGNodeStyleSetFlexBasisPercent, YGNodeStyleSetFlexBasisAuto);
+     }},
+    {"flex", [](YGNodeRef n, const std::string &v)
+     {
+         YGNodeStyleSetFlex(n, ParseStyleFloat(v));
+     }},
+    {"flexGrow", [](YGNodeRef n, const std::string &v)
+     {
+         YGNodeStyleSetFlexGrow(n, ParseStyleFloat(v));
+     }},
+    {"flexShrink", [](YGNodeRef n, const std::string &v)
+     {
+         YGNodeStyleSetFlexShrink(n, ParseStyleFloat(v));
+     }},
+    {"flexDirection", [](YGNodeRef n, const std::string &v)
+     {
+         YGNodeStyleSetFlexDirection(n, ParseFlexDirection(v));
+     }},
+    {"flexWrap", [](YGNodeRef n, const std::string &v)
+     {
+         YGNodeStyleSetFlexWrap(n, ParseWrap(v));
+     }},
+    {"justifyContent", [](YGNodeRef n, const std::string &v)
+     {
+         YGNodeStyleSetJustifyContent(n, ParseJustify(v));
+     }},
+    {"alignItems", [](YGNodeRef n, const std::string &v)
+     {
+         YGNodeStyleSetAlignItems(n, ParseAlign(v));
+     }},
+    {"alignSelf", [](YGNodeRef n, const std::string &v)
+     {
+         YGNodeStyleSetAlignSelf(n, ParseAlign(v));
+     }},
+    {"alignContent", [](YGNodeRef n, const std::string &v)
+     {
+         YGNodeStyleSetAlignContent(n, ParseAlign(v));
+     }},
+    {"gap", [](YGNodeRef n, const std::string &v)
+     {
+         YGNodeStyleSetGap(n, YGGutterAll, ParseStyleFloat(v));
+     }},
+    {"rowGap", [](YGNodeRef n, const std::string &v)
+     {
+         YGNodeStyleSetGap(n, YGGutterRow, ParseStyleFloat(v));
+     }},
+    {"columnGap", [](YGNodeRef n, const std::string &v)
+     {
+         YGNodeStyleSetGap(n, YGGutterColumn, ParseStyleFloat(v));
+     }},
+    {"padding", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyEdgeStyle(n, v, YGEdgeAll, YGNodeStyleSetPadding, YGNodeStyleSetPaddingPercent);
+     }},
+    {"paddingHorizontal", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyEdgeStyle(n, v, YGEdgeHorizontal, YGNodeStyleSetPadding, YGNodeStyleSetPaddingPercent);
+     }},
+    {"paddingVertical", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyEdgeStyle(n, v, YGEdgeVertical, YGNodeStyleSetPadding, YGNodeStyleSetPaddingPercent);
+     }},
+    {"paddingLeft", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyEdgeStyle(n, v, YGEdgeLeft, YGNodeStyleSetPadding, YGNodeStyleSetPaddingPercent);
+     }},
+    {"paddingTop", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyEdgeStyle(n, v, YGEdgeTop, YGNodeStyleSetPadding, YGNodeStyleSetPaddingPercent);
+     }},
+    {"paddingRight", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyEdgeStyle(n, v, YGEdgeRight, YGNodeStyleSetPadding, YGNodeStyleSetPaddingPercent);
+     }},
+    {"paddingBottom", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyEdgeStyle(n, v, YGEdgeBottom, YGNodeStyleSetPadding, YGNodeStyleSetPaddingPercent);
+     }},
+    {"margin", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyEdgeStyle(n, v, YGEdgeAll, YGNodeStyleSetMargin, YGNodeStyleSetMarginPercent);
+     }},
+    {"marginHorizontal", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyEdgeStyle(n, v, YGEdgeHorizontal, YGNodeStyleSetMargin, YGNodeStyleSetMarginPercent);
+     }},
+    {"marginVertical", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyEdgeStyle(n, v, YGEdgeVertical, YGNodeStyleSetMargin, YGNodeStyleSetMarginPercent);
+     }},
+    {"marginLeft", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyEdgeStyle(n, v, YGEdgeLeft, YGNodeStyleSetMargin, YGNodeStyleSetMarginPercent);
+     }},
+    {"marginTop", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyEdgeStyle(n, v, YGEdgeTop, YGNodeStyleSetMargin, YGNodeStyleSetMarginPercent);
+     }},
+    {"marginRight", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyEdgeStyle(n, v, YGEdgeRight, YGNodeStyleSetMargin, YGNodeStyleSetMarginPercent);
+     }},
+    {"marginBottom", [](YGNodeRef n, const std::string &v)
+     {
+         ApplyEdgeStyle(n, v, YGEdgeBottom, YGNodeStyleSetMargin, YGNodeStyleSetMarginPercent);
+     }},
+    {"aspectRatio", [](YGNodeRef n, const std::string &v)
+     {
+         YGNodeStyleSetAspectRatio(n, ParseStyleFloat(v));
+     }},
+    {"display", [](YGNodeRef n, const std::string &v)
+     {
+         YGNodeStyleSetDisplay(n, ParseDisplay(v));
      }}};
 
 using AttrFunc = std::function<void(Element *, const Element::AttrValue &)>;
@@ -141,10 +434,6 @@ void StyleApplier::ApplyStyle(YGNodeRef node, const std::string &key, const std:
         return;
     }
 
-    bool isAuto = (value == "auto");
-    bool isPercent = (value.back() == '%');
-    float numValue = isPercent ? std::stof(value.substr(0, value.size() - 1)) / 100.0f : std::stof(value);
-    
     styleMap[key](node, value);
 }
 
@@ -177,7 +466,7 @@ void AttributeApplier::ApplyAttribute(Element *element, const std::string &key, 
     attrMap[key](element, value);
 }
 
-Element::Element(uint64_t uid) : uid(uid)
+Element::Element(uint64_t uid) : uid(uid), dirtyFlag(false), visible(true)
 {
     ygNode = YGNodeNew();
     YGNodeSetContext(ygNode, this);
@@ -231,6 +520,10 @@ void Element::ApplyAttributes(const std::string &key, Element::AttrValue value)
     else
     {
         attributes[key] = value;
+        if ((key == "fontSize" || key == "fontFamily" || key == "lineHeight") && YGNodeHasMeasureFunc(ygNode))
+        {
+            YGNodeMarkDirty(ygNode);
+        }
     }
 }
 

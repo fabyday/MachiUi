@@ -61,6 +61,10 @@ public:
     void setText(const std::string &text)
     {
         this->text = text;
+        if (YGNodeHasMeasureFunc(this->ygNode))
+        {
+            YGNodeMarkDirty(this->ygNode);
+        }
     }
 
     void setVisible(bool visible)
@@ -115,6 +119,11 @@ public:
     bool getDirtyFlag()
     {
         return dirtyFlag;
+    }
+
+    YGNodeRef getLayoutNode() const
+    {
+        return ygNode;
     }
 
     const std::vector<Element *> &getChildren() const

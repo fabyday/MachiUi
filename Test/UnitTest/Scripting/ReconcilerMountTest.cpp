@@ -42,17 +42,17 @@ TEST(ReconcilerMountTest, LoadsExampleViewIntoSceneGraph)
     Element *div = graph->getRoot()->getChildren().front();
     ASSERT_NE(div, nullptr);
 
-    const auto *color = div->getAttribute("color");
-    ASSERT_NE(color, nullptr);
-    ASSERT_NE(std::get_if<std::string>(color), nullptr);
-    EXPECT_EQ(*std::get_if<std::string>(color), "white");
+    const auto *backgroundColor = div->getAttribute("backgroundColor");
+    ASSERT_NE(backgroundColor, nullptr);
+    ASSERT_NE(std::get_if<std::string>(backgroundColor), nullptr);
+    EXPECT_EQ(*std::get_if<std::string>(backgroundColor), "#111827");
 
     ASSERT_FALSE(div->getChildren().empty());
-    Element *yellowDiv = div->getChildren().front();
-    ASSERT_NE(yellowDiv, nullptr);
+    Element *sidebar = div->getChildren().front();
+    ASSERT_NE(sidebar, nullptr);
 
-    const auto *childColor = yellowDiv->getAttribute("color");
-    ASSERT_NE(childColor, nullptr);
-    ASSERT_NE(std::get_if<std::string>(childColor), nullptr);
-    EXPECT_EQ(*std::get_if<std::string>(childColor), "yellow");
+    const auto *sidebarColor = sidebar->getAttribute("backgroundColor");
+    ASSERT_NE(sidebarColor, nullptr);
+    ASSERT_NE(std::get_if<std::string>(sidebarColor), nullptr);
+    EXPECT_EQ(*std::get_if<std::string>(sidebarColor), "#1f2a44");
 }

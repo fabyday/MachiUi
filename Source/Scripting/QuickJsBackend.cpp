@@ -7,10 +7,36 @@
 #include "../Core/Element.h"
 #include "NativeBinder.h"
 #include "ClassRegistry.h"
+#include "../Core/InputManager.h"
 #include "../Core/LogManager.h"
 #include "../Core/ILogger.h"
+#include "../Core/Message.h"
+#include <algorithm>
+#include <cctype>
 #include <climits>
+#include <cmath>
 #include <cstdint>
+#include <cstring>
+#include <cwctype>
+#include <memory>
+#include <optional>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <Windows.h>
+#include <winhttp.h>
+#pragma comment(lib, "winhttp.lib")
+#endif
 
 #if __cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L)
 // C++20 이상
@@ -49,11 +75,12 @@ struct
     void run(const std::string &code, const std::string &name, bool isModule);
     void handleException();
 };
-static void register_native_method(JSContext *ctx);
+static void register_native_method(JSContext *ctx, ScriptManager *manager);
 static JSModuleDef *js_module_loader(JSContext *ctx, const char *module_name, void *opaque);
 static JSValue js_console_log(JSContext *ctx, JSValueConst func, int argc, JSValueConst *argv);
 static char *js_module_normalize(JSContext *ctx, const char *module_referrer,
                                  const char *module_name, void *opaque);
+static void js_release_event_runtime(JSContext *ctx);
 
 // --- QuickJS와 직접 소통하는 내부 구현체 ---
 
@@ -64,19 +91,18 @@ ScriptManager::Impl::Impl(ScriptManager *manager)
 
     // register Moudle Loader Function
     JS_SetModuleLoaderFunc(runtime, js_module_normalize, js_module_loader, manager);
+    JS_SetContextOpaque(context, manager);
     JSValue globalObj = JS_GetGlobalObject(context);
     JSValue console = JS_NewObject(context);
     JS_SetPropertyStr(context, console, "log", JS_NewCFunction(context, js_console_log, "log", 1));
     JS_SetPropertyStr(context, globalObj, "console", console);
-    register_native_method(context);
-
-    // set opaque data for module loader
-    JS_SetContextOpaque(context, manager);
+    register_native_method(context, manager);
     JS_FreeValue(context, globalObj);
 }
 
 ScriptManager::Impl::~Impl()
 {
+    js_release_event_runtime(context);
     JS_FreeContext(context);
     JS_FreeRuntime(runtime);
 }
@@ -339,6 +365,12 @@ static JSValue js_element_set_style(JSContext *ctx, JSValueConst this_val,
                                     int argc, JSValueConst *argv);
 static JSValue js_update_props(JSContext *ctx, JSValueConst this_val,
                                int argc, JSValueConst *argv);
+static JSValue js_update_event_handler(JSContext *ctx, JSValueConst this_val,
+                                       int argc, JSValueConst *argv);
+static JSValue js_update_global_event_handler(JSContext *ctx, JSValueConst this_val,
+                                              int argc, JSValueConst *argv);
+static JSValue js_get_bounding_client_rect(JSContext *ctx, JSValueConst this_val,
+                                           int argc, JSValueConst *argv);
 // TODO detachChild()
 static JSValue js_create_element(JSContext *ctx, JSValueConst this_val,
                                  int argc, JSValueConst *argv);
@@ -347,6 +379,10 @@ static JSValue js_create_text_node(JSContext *ctx, JSValueConst this_val,
                                    int argc, JSValueConst *argv);
 static JSValue js_update_text(JSContext *ctx, JSValueConst this_val,
                               int argc, JSValueConst *argv);
+static JSValue js_is_network_enabled(JSContext *ctx, JSValueConst this_val,
+                                     int argc, JSValueConst *argv);
+static JSValue js_fetch_sync(JSContext *ctx, JSValueConst this_val,
+                             int argc, JSValueConst *argv);
 
 ////////////////////////////////////////////////////////////////////////////
 
@@ -365,6 +401,719 @@ static bool js_read_element_id(JSContext *ctx, JSValueConst value, uint64_t &id)
 {
     id = 0;
     return JS_ToBigUint64(ctx, &id, value) == 0;
+}
+
+struct JsEventRuntime
+{
+    JSRuntime *runtime = nullptr;
+    JSContext *context = nullptr;
+    ScriptManager *scriptManager = nullptr;
+    bool subscribed = false;
+    std::unordered_map<uint64_t, std::unordered_map<std::string, JSValue>> handlers;
+    std::unordered_map<std::string, JSValue> globalHandlers;
+    uint64_t focusedElementId = 0;
+    uint64_t pointerCaptureElementId = 0;
+    uint64_t pointerDownElementId = 0;
+    float pointerDownX = 0.0f;
+    float pointerDownY = 0.0f;
+    float lastPointerX = 0.0f;
+    float lastPointerY = 0.0f;
+    bool pointerDown = false;
+    bool dragging = false;
+};
+
+static std::unordered_map<JSContext *, std::unique_ptr<JsEventRuntime>> g_eventRuntimes;
+
+static JsEventRuntime *find_event_runtime(JSContext *ctx)
+{
+    auto it = g_eventRuntimes.find(ctx);
+    if (it == g_eventRuntimes.end())
+    {
+        return nullptr;
+    }
+
+    return it->second.get();
+}
+
+static JsEventRuntime *ensure_event_runtime(JSContext *ctx, ScriptManager *manager)
+{
+    if (ctx == nullptr)
+    {
+        return nullptr;
+    }
+
+    auto it = g_eventRuntimes.find(ctx);
+    if (it != g_eventRuntimes.end())
+    {
+        return it->second.get();
+    }
+
+    auto runtime = std::make_unique<JsEventRuntime>();
+    runtime->runtime = JS_GetRuntime(ctx);
+    runtime->context = ctx;
+    runtime->scriptManager = manager;
+    auto *rawRuntime = runtime.get();
+    g_eventRuntimes[ctx] = std::move(runtime);
+    return rawRuntime;
+}
+
+static void js_release_event_runtime(JSContext *ctx)
+{
+    auto it = g_eventRuntimes.find(ctx);
+    if (it == g_eventRuntimes.end())
+    {
+        return;
+    }
+
+    for (auto &elementHandlers : it->second->handlers)
+    {
+        for (auto &handler : elementHandlers.second)
+        {
+            JS_FreeValue(ctx, handler.second);
+        }
+    }
+    for (auto &handler : it->second->globalHandlers)
+    {
+        JS_FreeValue(ctx, handler.second);
+    }
+
+    g_eventRuntimes.erase(it);
+}
+
+static void log_js_exception(JSContext *ctx)
+{
+    JSValue exception = JS_GetException(ctx);
+    const char *message = JS_ToCString(ctx, exception);
+    if (message != nullptr)
+    {
+        std::cerr << "[JS Event Error] " << message << std::endl;
+        JS_FreeCString(ctx, message);
+    }
+    JS_FreeValue(ctx, exception);
+}
+
+static bool element_has_handler(JsEventRuntime *runtime, uint64_t elementId, const std::string &eventName)
+{
+    if (runtime == nullptr)
+    {
+        return false;
+    }
+
+    auto elementIt = runtime->handlers.find(elementId);
+    if (elementIt == runtime->handlers.end())
+    {
+        return false;
+    }
+
+    return elementIt->second.find(eventName) != elementIt->second.end();
+}
+
+static std::optional<std::string> get_element_string_attribute(Element *element, const char *key)
+{
+    if (element == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    if (const auto *value = element->getAttribute(key))
+    {
+        if (const auto *stringValue = std::get_if<std::string>(value))
+        {
+            return *stringValue;
+        }
+    }
+
+    return std::nullopt;
+}
+
+static float get_element_float_attribute(Element *element, const char *key, float fallback)
+{
+    if (element == nullptr)
+    {
+        return fallback;
+    }
+
+    const auto *value = element->getAttribute(key);
+    if (value == nullptr)
+    {
+        return fallback;
+    }
+
+    if (const auto *intValue = std::get_if<int>(value))
+    {
+        return static_cast<float>(*intValue);
+    }
+    if (const auto *floatValue = std::get_if<float>(value))
+    {
+        return *floatValue;
+    }
+    if (const auto *stringValue = std::get_if<std::string>(value))
+    {
+        try
+        {
+            return std::stof(*stringValue);
+        }
+        catch (...)
+        {
+        }
+    }
+
+    return fallback;
+}
+
+static std::pair<float, float> parse_transform_translate(const std::string &transform)
+{
+    const auto open = transform.find('(');
+    const auto close = transform.find(')', open == std::string::npos ? 0 : open);
+    if (open == std::string::npos || close == std::string::npos || close <= open + 1)
+    {
+        return {0.0f, 0.0f};
+    }
+
+    std::string values = transform.substr(open + 1, close - open - 1);
+    std::replace(values.begin(), values.end(), ',', ' ');
+
+    std::istringstream stream(values);
+    float x = 0.0f;
+    float y = 0.0f;
+    stream >> x;
+    stream >> y;
+    return {x, y};
+}
+
+static std::pair<float, float> element_transform_offset(Element *element)
+{
+    float x = get_element_float_attribute(element, "translateX", 0.0f);
+    float y = get_element_float_attribute(element, "translateY", 0.0f);
+
+    if (auto transform = get_element_string_attribute(element, "transform"))
+    {
+        const auto offset = parse_transform_translate(transform.value());
+        x += offset.first;
+        y += offset.second;
+    }
+
+    return {x, y};
+}
+
+static float element_absolute_left(Element *element)
+{
+    float result = 0.0f;
+    for (Element *current = element; current != nullptr; current = current->getParent())
+    {
+        result += YGNodeLayoutGetLeft(current->getLayoutNode());
+        result += element_transform_offset(current).first;
+    }
+    return result;
+}
+
+static float element_absolute_top(Element *element)
+{
+    float result = 0.0f;
+    for (Element *current = element; current != nullptr; current = current->getParent())
+    {
+        result += YGNodeLayoutGetTop(current->getLayoutNode());
+        result += element_transform_offset(current).second;
+    }
+    return result;
+}
+
+static int element_depth(Element *element)
+{
+    int depth = 0;
+    for (Element *current = element; current != nullptr; current = current->getParent())
+    {
+        ++depth;
+    }
+    return depth;
+}
+
+static bool is_element_hit(Element *element, float x, float y)
+{
+    if (element == nullptr || !element->getVisible() || element->getSceneGraph() == nullptr)
+    {
+        return false;
+    }
+
+    const float left = element_absolute_left(element);
+    const float top = element_absolute_top(element);
+    const float width = YGNodeLayoutGetWidth(element->getLayoutNode());
+    const float height = YGNodeLayoutGetHeight(element->getLayoutNode());
+    return width > 0.0f && height > 0.0f && x >= left && x <= left + width && y >= top && y <= top + height;
+}
+
+static uint64_t hit_test_event_target(JsEventRuntime *runtime, const std::vector<std::string> &eventNames, float x, float y)
+{
+    if (runtime == nullptr || runtime->scriptManager == nullptr || runtime->scriptManager->getSceneManager() == nullptr)
+    {
+        return 0;
+    }
+
+    SceneManager *sceneManager = runtime->scriptManager->getSceneManager();
+    uint64_t bestElementId = 0;
+    int bestDepth = -1;
+
+    for (const auto &elementHandlers : runtime->handlers)
+    {
+        bool handlesAny = false;
+        for (const auto &eventName : eventNames)
+        {
+            if (elementHandlers.second.find(eventName) != elementHandlers.second.end())
+            {
+                handlesAny = true;
+                break;
+            }
+        }
+        if (!handlesAny)
+        {
+            continue;
+        }
+
+        Element *element = sceneManager->getElement(elementHandlers.first);
+        if (!is_element_hit(element, x, y))
+        {
+            continue;
+        }
+
+        const int depth = element_depth(element);
+        if (depth > bestDepth || (depth == bestDepth && elementHandlers.first > bestElementId))
+        {
+            bestDepth = depth;
+            bestElementId = elementHandlers.first;
+        }
+    }
+
+    return bestElementId;
+}
+
+static JSValue create_base_event(JSContext *ctx, const char *type, uint64_t targetId)
+{
+    JSValue event = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, event, "type", JS_NewString(ctx, type));
+    JS_SetPropertyStr(ctx, event, "target", JS_NewBigUint64(ctx, targetId));
+    JS_SetPropertyStr(ctx, event, "currentTarget", JS_NewBigUint64(ctx, targetId));
+    JS_SetPropertyStr(ctx, event, "bubbles", JS_NewBool(ctx, true));
+    return event;
+}
+
+static JSValue create_pointer_event(JSContext *ctx, const char *type, uint64_t targetId, const MouseEvent &event, float deltaX, float deltaY)
+{
+    JSValue jsEvent = create_base_event(ctx, type, targetId);
+    const int button = static_cast<int>(event.button);
+    JS_SetPropertyStr(ctx, jsEvent, "x", JS_NewFloat64(ctx, event.x));
+    JS_SetPropertyStr(ctx, jsEvent, "y", JS_NewFloat64(ctx, event.y));
+    JS_SetPropertyStr(ctx, jsEvent, "clientX", JS_NewFloat64(ctx, event.x));
+    JS_SetPropertyStr(ctx, jsEvent, "clientY", JS_NewFloat64(ctx, event.y));
+    JS_SetPropertyStr(ctx, jsEvent, "pageX", JS_NewFloat64(ctx, event.x));
+    JS_SetPropertyStr(ctx, jsEvent, "pageY", JS_NewFloat64(ctx, event.y));
+    JS_SetPropertyStr(ctx, jsEvent, "screenX", JS_NewFloat64(ctx, event.x));
+    JS_SetPropertyStr(ctx, jsEvent, "screenY", JS_NewFloat64(ctx, event.y));
+    JS_SetPropertyStr(ctx, jsEvent, "deltaX", JS_NewFloat64(ctx, deltaX));
+    JS_SetPropertyStr(ctx, jsEvent, "deltaY", JS_NewFloat64(ctx, deltaY));
+    JS_SetPropertyStr(ctx, jsEvent, "button", JS_NewInt32(ctx, button));
+    JS_SetPropertyStr(ctx, jsEvent, "buttons", JS_NewInt32(ctx, event.isPressed ? (1 << button) : 0));
+    JS_SetPropertyStr(ctx, jsEvent, "pointerId", JS_NewInt32(ctx, 1));
+    JS_SetPropertyStr(ctx, jsEvent, "pointerType", JS_NewString(ctx, "mouse"));
+    JS_SetPropertyStr(ctx, jsEvent, "isPrimary", JS_NewBool(ctx, true));
+    return jsEvent;
+}
+
+static JSValue create_key_event(JSContext *ctx, const char *type, uint64_t targetId, const KeyEvent &event)
+{
+    JSValue jsEvent = create_base_event(ctx, type, targetId);
+    JS_SetPropertyStr(ctx, jsEvent, "keyCode", JS_NewInt32(ctx, event.keyCode));
+    JS_SetPropertyStr(ctx, jsEvent, "which", JS_NewInt32(ctx, event.keyCode));
+    JS_SetPropertyStr(ctx, jsEvent, "altKey", JS_NewBool(ctx, event.altDown));
+    JS_SetPropertyStr(ctx, jsEvent, "ctrlKey", JS_NewBool(ctx, event.controlDown));
+    JS_SetPropertyStr(ctx, jsEvent, "shiftKey", JS_NewBool(ctx, event.shiftDown));
+    JS_SetPropertyStr(ctx, jsEvent, "metaKey", JS_NewBool(ctx, event.metaDown));
+    return jsEvent;
+}
+
+static JSValue create_wheel_event(JSContext *ctx, const MouseWheelEvent &event)
+{
+    JSValue jsEvent = create_base_event(ctx, "wheel", 0);
+    JS_SetPropertyStr(ctx, jsEvent, "deltaY", JS_NewFloat64(ctx, -event.delta * 120.0f));
+    JS_SetPropertyStr(ctx, jsEvent, "deltaMode", JS_NewInt32(ctx, 0));
+    return jsEvent;
+}
+
+static JSValue create_window_event(JSContext *ctx, const char *type, const WindowEvent &event)
+{
+    JSValue jsEvent = create_base_event(ctx, type, 0);
+    JS_SetPropertyStr(ctx, jsEvent, "width", JS_NewUint32(ctx, event.width));
+    JS_SetPropertyStr(ctx, jsEvent, "height", JS_NewUint32(ctx, event.height));
+    return jsEvent;
+}
+
+static void process_js_pending_jobs(JsEventRuntime *runtime)
+{
+    if (runtime == nullptr || runtime->runtime == nullptr)
+    {
+        return;
+    }
+
+    JSContext *pendingContext = nullptr;
+    while (JS_ExecutePendingJob(runtime->runtime, &pendingContext) > 0)
+    {
+    }
+}
+
+static void call_event_handler(JsEventRuntime *runtime, JSValueConst callback, JSValue event)
+{
+    if (runtime == nullptr || runtime->context == nullptr)
+    {
+        return;
+    }
+
+    JSValue args[] = {event};
+    JSValue result = JS_Call(runtime->context, callback, JS_UNDEFINED, 1, args);
+    if (JS_IsException(result))
+    {
+        log_js_exception(runtime->context);
+    }
+    JS_FreeValue(runtime->context, result);
+}
+
+static bool dispatch_event_to_path(JsEventRuntime *runtime, uint64_t targetId, const std::string &eventName, JSValue event)
+{
+    if (runtime == nullptr || runtime->scriptManager == nullptr || runtime->scriptManager->getSceneManager() == nullptr || targetId == 0)
+    {
+        return false;
+    }
+
+    Element *element = runtime->scriptManager->getSceneManager()->getElement(targetId);
+    std::vector<std::pair<uint64_t, JSValue>> callbacks;
+    for (Element *current = element; current != nullptr; current = current->getParent())
+    {
+        auto elementIt = runtime->handlers.find(current->getUid());
+        if (elementIt == runtime->handlers.end())
+        {
+            continue;
+        }
+
+        auto handlerIt = elementIt->second.find(eventName);
+        if (handlerIt == elementIt->second.end())
+        {
+            continue;
+        }
+
+        callbacks.push_back({current->getUid(), JS_DupValue(runtime->context, handlerIt->second)});
+    }
+
+    for (const auto &callback : callbacks)
+    {
+        JS_SetPropertyStr(runtime->context, event, "currentTarget", JS_NewBigUint64(runtime->context, callback.first));
+        call_event_handler(runtime, callback.second, event);
+        JS_FreeValue(runtime->context, callback.second);
+    }
+
+    process_js_pending_jobs(runtime);
+    return !callbacks.empty();
+}
+
+static void dispatch_event_to_all(JsEventRuntime *runtime, const std::string &eventName, JSValue event)
+{
+    if (runtime == nullptr)
+    {
+        return;
+    }
+
+    std::vector<std::pair<uint64_t, JSValue>> callbacks;
+    for (const auto &elementHandlers : runtime->handlers)
+    {
+        auto handlerIt = elementHandlers.second.find(eventName);
+        if (handlerIt == elementHandlers.second.end())
+        {
+            continue;
+        }
+
+        callbacks.push_back({elementHandlers.first, JS_DupValue(runtime->context, handlerIt->second)});
+    }
+
+    for (const auto &callback : callbacks)
+    {
+        JS_SetPropertyStr(runtime->context, event, "target", JS_NewBigUint64(runtime->context, callback.first));
+        JS_SetPropertyStr(runtime->context, event, "currentTarget", JS_NewBigUint64(runtime->context, callback.first));
+        call_event_handler(runtime, callback.second, event);
+        JS_FreeValue(runtime->context, callback.second);
+    }
+
+    process_js_pending_jobs(runtime);
+}
+
+static void dispatch_global_event(JsEventRuntime *runtime, const std::string &eventName, JSValue event)
+{
+    if (runtime == nullptr || runtime->context == nullptr)
+    {
+        return;
+    }
+
+    auto handlerIt = runtime->globalHandlers.find(eventName);
+    if (handlerIt == runtime->globalHandlers.end())
+    {
+        return;
+    }
+
+    JSValue callback = JS_DupValue(runtime->context, handlerIt->second);
+    call_event_handler(runtime, callback, event);
+    JS_FreeValue(runtime->context, callback);
+    process_js_pending_jobs(runtime);
+}
+
+static void dispatch_key_input(JsEventRuntime *runtime, const KeyEvent &event)
+{
+    if (runtime == nullptr || runtime->context == nullptr)
+    {
+        return;
+    }
+
+    const std::string eventName = event.isPressed ? "onKeyDown" : "onKeyUp";
+    const char *eventType = event.isPressed ? "keyDown" : "keyUp";
+    const char *globalEventType = event.isPressed ? "keydown" : "keyup";
+    const uint64_t targetId = runtime->focusedElementId;
+
+    JSValue globalEvent = create_key_event(runtime->context, globalEventType, targetId, event);
+    dispatch_global_event(runtime, globalEventType, globalEvent);
+    JS_FreeValue(runtime->context, globalEvent);
+
+    JSValue jsEvent = create_key_event(runtime->context, eventType, targetId, event);
+
+    if (targetId == 0 || !dispatch_event_to_path(runtime, targetId, eventName, jsEvent))
+    {
+        dispatch_event_to_all(runtime, eventName, jsEvent);
+    }
+
+    JS_FreeValue(runtime->context, jsEvent);
+}
+
+static void dispatch_mouse_input(JsEventRuntime *runtime, const MouseEvent &event)
+{
+    if (runtime == nullptr || runtime->context == nullptr)
+    {
+        return;
+    }
+
+    if (event.type == MouseEvent::Type::Down)
+    {
+        const uint64_t targetId = hit_test_event_target(
+            runtime,
+            {"onPointerDown", "onMouseDown", "onClick", "onDragStart", "onDrag", "onDragEnd"},
+            event.x,
+            event.y);
+        runtime->focusedElementId = targetId;
+        runtime->pointerCaptureElementId = targetId;
+        runtime->pointerDownElementId = targetId;
+        runtime->pointerDownX = event.x;
+        runtime->pointerDownY = event.y;
+        runtime->lastPointerX = event.x;
+        runtime->lastPointerY = event.y;
+        runtime->pointerDown = true;
+        runtime->dragging = false;
+
+        JSValue globalPointerEvent = create_pointer_event(runtime->context, "pointerdown", targetId, event, 0.0f, 0.0f);
+        dispatch_global_event(runtime, "pointerdown", globalPointerEvent);
+        JS_FreeValue(runtime->context, globalPointerEvent);
+
+        JSValue globalMouseEvent = create_pointer_event(runtime->context, "mousedown", targetId, event, 0.0f, 0.0f);
+        dispatch_global_event(runtime, "mousedown", globalMouseEvent);
+        JS_FreeValue(runtime->context, globalMouseEvent);
+
+        JSValue jsEvent = create_pointer_event(runtime->context, "pointerDown", targetId, event, 0.0f, 0.0f);
+        dispatch_event_to_path(runtime, targetId, "onPointerDown", jsEvent);
+        dispatch_event_to_path(runtime, targetId, "onMouseDown", jsEvent);
+        JS_FreeValue(runtime->context, jsEvent);
+        return;
+    }
+
+    if (event.type == MouseEvent::Type::Move)
+    {
+        const uint64_t targetId = runtime->pointerDown && runtime->pointerCaptureElementId != 0
+                                      ? runtime->pointerCaptureElementId
+                                      : hit_test_event_target(runtime, {"onPointerMove", "onMouseMove"}, event.x, event.y);
+        const float deltaX = event.x - runtime->lastPointerX;
+        const float deltaY = event.y - runtime->lastPointerY;
+
+        JSValue globalPointerEvent = create_pointer_event(runtime->context, "pointermove", targetId, event, deltaX, deltaY);
+        dispatch_global_event(runtime, "pointermove", globalPointerEvent);
+        JS_FreeValue(runtime->context, globalPointerEvent);
+
+        JSValue globalMouseEvent = create_pointer_event(runtime->context, "mousemove", targetId, event, deltaX, deltaY);
+        dispatch_global_event(runtime, "mousemove", globalMouseEvent);
+        JS_FreeValue(runtime->context, globalMouseEvent);
+
+        JSValue jsEvent = create_pointer_event(runtime->context, "pointerMove", targetId, event, deltaX, deltaY);
+        dispatch_event_to_path(runtime, targetId, "onPointerMove", jsEvent);
+        dispatch_event_to_path(runtime, targetId, "onMouseMove", jsEvent);
+
+        if (runtime->pointerDown && runtime->pointerCaptureElementId != 0)
+        {
+            const float totalDeltaX = event.x - runtime->pointerDownX;
+            const float totalDeltaY = event.y - runtime->pointerDownY;
+            const float dragDistanceSquared = totalDeltaX * totalDeltaX + totalDeltaY * totalDeltaY;
+            if (!runtime->dragging && dragDistanceSquared > 9.0f)
+            {
+                runtime->dragging = true;
+                dispatch_event_to_path(runtime, runtime->pointerCaptureElementId, "onDragStart", jsEvent);
+            }
+            if (runtime->dragging)
+            {
+                dispatch_event_to_path(runtime, runtime->pointerCaptureElementId, "onDrag", jsEvent);
+            }
+        }
+
+        runtime->lastPointerX = event.x;
+        runtime->lastPointerY = event.y;
+        JS_FreeValue(runtime->context, jsEvent);
+        return;
+    }
+
+    const uint64_t targetId = runtime->pointerCaptureElementId != 0
+                                  ? runtime->pointerCaptureElementId
+                                  : hit_test_event_target(runtime, {"onPointerUp", "onMouseUp", "onClick", "onDragEnd"}, event.x, event.y);
+    const float deltaX = event.x - runtime->lastPointerX;
+    const float deltaY = event.y - runtime->lastPointerY;
+
+    JSValue globalPointerEvent = create_pointer_event(runtime->context, "pointerup", targetId, event, deltaX, deltaY);
+    dispatch_global_event(runtime, "pointerup", globalPointerEvent);
+    JS_FreeValue(runtime->context, globalPointerEvent);
+
+    JSValue globalMouseEvent = create_pointer_event(runtime->context, "mouseup", targetId, event, deltaX, deltaY);
+    dispatch_global_event(runtime, "mouseup", globalMouseEvent);
+    JS_FreeValue(runtime->context, globalMouseEvent);
+
+    JSValue jsEvent = create_pointer_event(runtime->context, "pointerUp", targetId, event, deltaX, deltaY);
+    dispatch_event_to_path(runtime, targetId, "onPointerUp", jsEvent);
+    dispatch_event_to_path(runtime, targetId, "onMouseUp", jsEvent);
+    if (runtime->dragging)
+    {
+        dispatch_event_to_path(runtime, targetId, "onDragEnd", jsEvent);
+    }
+    else if (runtime->pointerDownElementId != 0 && runtime->pointerDownElementId == targetId)
+    {
+        JSValue globalClickEvent = create_pointer_event(runtime->context, "click", targetId, event, deltaX, deltaY);
+        dispatch_global_event(runtime, "click", globalClickEvent);
+        JS_FreeValue(runtime->context, globalClickEvent);
+        dispatch_event_to_path(runtime, targetId, "onClick", jsEvent);
+    }
+
+    runtime->pointerDown = false;
+    runtime->dragging = false;
+    runtime->pointerCaptureElementId = 0;
+    runtime->pointerDownElementId = 0;
+    runtime->lastPointerX = event.x;
+    runtime->lastPointerY = event.y;
+    JS_FreeValue(runtime->context, jsEvent);
+}
+
+static void dispatch_window_input(JsEventRuntime *runtime, const WindowEvent &event)
+{
+    if (runtime == nullptr || runtime->context == nullptr)
+    {
+        return;
+    }
+
+    const char *eventType = "window";
+    const char *handlerName = nullptr;
+    const char *globalEventName = nullptr;
+    switch (event.type)
+    {
+    case WindowEvent::Type::Resize:
+        eventType = "windowResize";
+        handlerName = "onWindowResize";
+        globalEventName = "resize";
+        break;
+    case WindowEvent::Type::FocusGained:
+        eventType = "windowFocus";
+        handlerName = "onWindowFocus";
+        globalEventName = "focus";
+        break;
+    case WindowEvent::Type::FocusLost:
+        eventType = "windowBlur";
+        handlerName = "onWindowBlur";
+        globalEventName = "blur";
+        break;
+    case WindowEvent::Type::Close:
+        eventType = "windowClose";
+        handlerName = "onWindowClose";
+        globalEventName = "close";
+        break;
+    }
+
+    if (handlerName == nullptr)
+    {
+        return;
+    }
+
+    if (globalEventName != nullptr)
+    {
+        JSValue globalEvent = create_window_event(runtime->context, globalEventName, event);
+        dispatch_global_event(runtime, globalEventName, globalEvent);
+        JS_FreeValue(runtime->context, globalEvent);
+    }
+
+    JSValue jsEvent = create_window_event(runtime->context, eventType, event);
+    dispatch_event_to_all(runtime, handlerName, jsEvent);
+    JS_FreeValue(runtime->context, jsEvent);
+}
+
+static void handle_native_input_message(JSContext *ctx, const IMessage &message)
+{
+    JsEventRuntime *runtime = find_event_runtime(ctx);
+    if (runtime == nullptr)
+    {
+        return;
+    }
+
+    if (const auto *keyEvent = std::get_if<KeyEvent>(&message.msg))
+    {
+        dispatch_key_input(runtime, *keyEvent);
+    }
+    else if (const auto *mouseEvent = std::get_if<MouseEvent>(&message.msg))
+    {
+        dispatch_mouse_input(runtime, *mouseEvent);
+    }
+    else if (const auto *wheelEvent = std::get_if<MouseWheelEvent>(&message.msg))
+    {
+        JSValue jsEvent = create_wheel_event(runtime->context, *wheelEvent);
+        dispatch_global_event(runtime, "wheel", jsEvent);
+        JS_FreeValue(runtime->context, jsEvent);
+    }
+}
+
+static void handle_native_window_message(JSContext *ctx, const IMessage &message)
+{
+    JsEventRuntime *runtime = find_event_runtime(ctx);
+    if (runtime == nullptr)
+    {
+        return;
+    }
+
+    if (const auto *windowEvent = std::get_if<WindowEvent>(&message.msg))
+    {
+        dispatch_window_input(runtime, *windowEvent);
+    }
+}
+
+static void ensure_event_subscription(JsEventRuntime *runtime)
+{
+    if (runtime == nullptr || runtime->subscribed || runtime->scriptManager == nullptr)
+    {
+        return;
+    }
+
+    InputManager *inputManager = runtime->scriptManager->getInputManager();
+    if (inputManager == nullptr)
+    {
+        return;
+    }
+
+    JSContext *ctx = runtime->context;
+    inputManager->subscribeInput([ctx](const IMessage &message)
+                                 { handle_native_input_message(ctx, message); });
+    inputManager->subscribeWindowEvent([ctx](const IMessage &message)
+                                       { handle_native_window_message(ctx, message); });
+    runtime->subscribed = true;
 }
 
 static JSValue js_root_render(JSContext *ctx, JSValueConst this_val,
@@ -567,6 +1316,134 @@ static JSValue js_update_props(JSContext *ctx, JSValueConst this_val,
     JS_FreeCString(ctx, key);
     return JS_UNDEFINED;
 }
+
+static JSValue js_update_event_handler(JSContext *ctx, JSValueConst this_val,
+                                       int argc, JSValueConst *argv)
+{
+    ScriptManager *sm = static_cast<ScriptManager *>(JS_GetContextOpaque(ctx));
+    if (sm == nullptr || argc < 3)
+    {
+        return JS_EXCEPTION;
+    }
+
+    uint64_t elementId = 0;
+    if (!js_read_element_id(ctx, argv[0], elementId) || elementId == 0)
+    {
+        return JS_ThrowInternalError(ctx, "updateEventHandler expects a valid element id");
+    }
+
+    const char *key = JS_ToCString(ctx, argv[1]);
+    if (key == nullptr)
+    {
+        return JS_EXCEPTION;
+    }
+    std::string eventName(key);
+    JS_FreeCString(ctx, key);
+
+    JsEventRuntime *runtime = ensure_event_runtime(ctx, sm);
+    if (runtime == nullptr)
+    {
+        return JS_EXCEPTION;
+    }
+
+    auto &elementHandlers = runtime->handlers[elementId];
+    auto handlerIt = elementHandlers.find(eventName);
+    if (handlerIt != elementHandlers.end())
+    {
+        JS_FreeValue(ctx, handlerIt->second);
+        elementHandlers.erase(handlerIt);
+    }
+
+    if (JS_IsFunction(ctx, argv[2]))
+    {
+        elementHandlers[eventName] = JS_DupValue(ctx, argv[2]);
+        ensure_event_subscription(runtime);
+    }
+
+    if (elementHandlers.empty())
+    {
+        runtime->handlers.erase(elementId);
+    }
+
+    return JS_UNDEFINED;
+}
+
+static JSValue js_update_global_event_handler(JSContext *ctx, JSValueConst this_val,
+                                              int argc, JSValueConst *argv)
+{
+    ScriptManager *sm = static_cast<ScriptManager *>(JS_GetContextOpaque(ctx));
+    if (sm == nullptr || argc < 2)
+    {
+        return JS_EXCEPTION;
+    }
+
+    const char *key = JS_ToCString(ctx, argv[0]);
+    if (key == nullptr)
+    {
+        return JS_EXCEPTION;
+    }
+    std::string eventName(key);
+    JS_FreeCString(ctx, key);
+
+    JsEventRuntime *runtime = ensure_event_runtime(ctx, sm);
+    if (runtime == nullptr)
+    {
+        return JS_EXCEPTION;
+    }
+
+    auto handlerIt = runtime->globalHandlers.find(eventName);
+    if (handlerIt != runtime->globalHandlers.end())
+    {
+        JS_FreeValue(ctx, handlerIt->second);
+        runtime->globalHandlers.erase(handlerIt);
+    }
+
+    if (argc >= 2 && JS_IsFunction(ctx, argv[1]))
+    {
+        runtime->globalHandlers[eventName] = JS_DupValue(ctx, argv[1]);
+        ensure_event_subscription(runtime);
+    }
+
+    return JS_UNDEFINED;
+}
+
+static JSValue js_get_bounding_client_rect(JSContext *ctx, JSValueConst this_val,
+                                           int argc, JSValueConst *argv)
+{
+    ScriptManager *sm = static_cast<ScriptManager *>(JS_GetContextOpaque(ctx));
+    if (sm == nullptr || sm->getSceneManager() == nullptr || argc < 1)
+    {
+        return JS_EXCEPTION;
+    }
+
+    uint64_t elementId = 0;
+    if (!js_read_element_id(ctx, argv[0], elementId) || elementId == 0)
+    {
+        return JS_ThrowInternalError(ctx, "getBoundingClientRect expects a valid element id");
+    }
+
+    Element *element = sm->getSceneManager()->getElement(elementId);
+    if (element == nullptr)
+    {
+        return JS_ThrowInternalError(ctx, "Element not found");
+    }
+
+    const float left = element_absolute_left(element);
+    const float top = element_absolute_top(element);
+    const float width = YGNodeLayoutGetWidth(element->getLayoutNode());
+    const float height = YGNodeLayoutGetHeight(element->getLayoutNode());
+
+    JSValue rect = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, rect, "x", JS_NewFloat64(ctx, left));
+    JS_SetPropertyStr(ctx, rect, "y", JS_NewFloat64(ctx, top));
+    JS_SetPropertyStr(ctx, rect, "left", JS_NewFloat64(ctx, left));
+    JS_SetPropertyStr(ctx, rect, "top", JS_NewFloat64(ctx, top));
+    JS_SetPropertyStr(ctx, rect, "right", JS_NewFloat64(ctx, left + width));
+    JS_SetPropertyStr(ctx, rect, "bottom", JS_NewFloat64(ctx, top + height));
+    JS_SetPropertyStr(ctx, rect, "width", JS_NewFloat64(ctx, width));
+    JS_SetPropertyStr(ctx, rect, "height", JS_NewFloat64(ctx, height));
+    return rect;
+}
 // TODO detachChild()
 
 static JSValue js_create_text_node(JSContext *ctx, JSValueConst this_val,
@@ -646,6 +1523,813 @@ static JSValue js_destroy_element(JSContext *ctx, JSValueConst this_val, int arg
     return JS_UNDEFINED;
 }
 
+struct NativeFetchRequest
+{
+    std::string url;
+    std::string method = "GET";
+    std::string headers;
+    std::string body;
+    bool hasBody = false;
+};
+
+struct NativeFetchResponse
+{
+    int status = 0;
+    std::string statusText;
+    std::string body;
+    std::vector<std::pair<std::string, std::string>> headers;
+    std::string error;
+};
+
+static std::string to_upper_ascii(std::string value)
+{
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::toupper(ch));
+    });
+    return value;
+}
+
+static bool js_value_to_std_string(JSContext *ctx, JSValueConst value, std::string &out)
+{
+    size_t length = 0;
+    const char *data = JS_ToCStringLen(ctx, &length, value);
+    if (data == nullptr)
+    {
+        return false;
+    }
+
+    out.assign(data, length);
+    JS_FreeCString(ctx, data);
+    return true;
+}
+
+static bool js_get_optional_string_property(JSContext *ctx, JSValueConst object, const char *name, std::string &out)
+{
+    JSValue value = JS_GetPropertyStr(ctx, object, name);
+    if (JS_IsException(value))
+    {
+        return false;
+    }
+
+    if (JS_IsUndefined(value) || JS_IsNull(value))
+    {
+        JS_FreeValue(ctx, value);
+        return true;
+    }
+
+    bool ok = js_value_to_std_string(ctx, value, out);
+    JS_FreeValue(ctx, value);
+    return ok;
+}
+
+static bool has_cr_or_lf(const std::string &value)
+{
+    return value.find_first_of("\r\n") != std::string::npos;
+}
+
+static void append_fetch_header_line(const std::string &name, const std::string &value, std::string &headersOut)
+{
+    if (name.empty() || name.find(':') != std::string::npos || has_cr_or_lf(name) || has_cr_or_lf(value))
+    {
+        return;
+    }
+
+    headersOut += name;
+    headersOut += ": ";
+    headersOut += value;
+    headersOut += "\r\n";
+}
+
+static bool append_js_fetch_headers(JSContext *ctx, JSValueConst headersValue, std::string &headersOut)
+{
+    if (JS_IsUndefined(headersValue) || JS_IsNull(headersValue))
+    {
+        return true;
+    }
+
+    if (JS_IsString(headersValue))
+    {
+        std::string rawHeaders;
+        if (!js_value_to_std_string(ctx, headersValue, rawHeaders))
+        {
+            return false;
+        }
+
+        headersOut += rawHeaders;
+        if (headersOut.size() < 2 || headersOut.substr(headersOut.size() - 2) != "\r\n")
+        {
+            headersOut += "\r\n";
+        }
+        return true;
+    }
+
+    if (!JS_IsObject(headersValue))
+    {
+        return true;
+    }
+
+    JSPropertyEnum *properties = nullptr;
+    uint32_t propertyCount = 0;
+    if (JS_GetOwnPropertyNames(ctx, &properties, &propertyCount, headersValue, JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) < 0)
+    {
+        return false;
+    }
+
+    bool ok = true;
+    for (uint32_t index = 0; index < propertyCount; ++index)
+    {
+        const char *name = JS_AtomToCString(ctx, properties[index].atom);
+        if (name == nullptr)
+        {
+            ok = false;
+            continue;
+        }
+
+        JSValue value = JS_GetProperty(ctx, headersValue, properties[index].atom);
+        if (JS_IsException(value))
+        {
+            JS_FreeCString(ctx, name);
+            ok = false;
+            continue;
+        }
+
+        if (!JS_IsUndefined(value) && !JS_IsNull(value))
+        {
+            std::string headerValue;
+            if (js_value_to_std_string(ctx, value, headerValue))
+            {
+                append_fetch_header_line(name, headerValue, headersOut);
+            }
+            else
+            {
+                ok = false;
+            }
+        }
+
+        JS_FreeValue(ctx, value);
+        JS_FreeCString(ctx, name);
+    }
+
+    JS_FreePropertyEnum(ctx, properties, propertyCount);
+    return ok;
+}
+
+static bool read_fetch_request(JSContext *ctx, int argc, JSValueConst *argv, NativeFetchRequest &request)
+{
+    if (argc < 1 || JS_IsUndefined(argv[0]) || JS_IsNull(argv[0]))
+    {
+        JS_ThrowTypeError(ctx, "fetchSync expects a URL");
+        return false;
+    }
+
+    if (!js_value_to_std_string(ctx, argv[0], request.url))
+    {
+        return false;
+    }
+
+    if (argc < 2 || !JS_IsObject(argv[1]))
+    {
+        return true;
+    }
+
+    std::string method;
+    if (!js_get_optional_string_property(ctx, argv[1], "method", method))
+    {
+        return false;
+    }
+    if (!method.empty())
+    {
+        request.method = to_upper_ascii(method);
+    }
+
+    JSValue headersValue = JS_GetPropertyStr(ctx, argv[1], "headers");
+    if (JS_IsException(headersValue))
+    {
+        return false;
+    }
+    bool headersOk = append_js_fetch_headers(ctx, headersValue, request.headers);
+    JS_FreeValue(ctx, headersValue);
+    if (!headersOk)
+    {
+        return false;
+    }
+
+    JSValue bodyValue = JS_GetPropertyStr(ctx, argv[1], "body");
+    if (JS_IsException(bodyValue))
+    {
+        return false;
+    }
+    if (!JS_IsUndefined(bodyValue) && !JS_IsNull(bodyValue))
+    {
+        request.hasBody = true;
+        if (!js_value_to_std_string(ctx, bodyValue, request.body))
+        {
+            JS_FreeValue(ctx, bodyValue);
+            return false;
+        }
+    }
+    JS_FreeValue(ctx, bodyValue);
+
+    return true;
+}
+
+#ifdef _WIN32
+struct WinHttpScopedHandle
+{
+    HINTERNET value = nullptr;
+
+    ~WinHttpScopedHandle()
+    {
+        if (value != nullptr)
+        {
+            WinHttpCloseHandle(value);
+        }
+    }
+
+    operator HINTERNET() const
+    {
+        return value;
+    }
+};
+
+static std::wstring utf8_to_wide(const std::string &value)
+{
+    if (value.empty())
+    {
+        return {};
+    }
+
+    int length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, value.data(), static_cast<int>(value.size()), nullptr, 0);
+    if (length <= 0)
+    {
+        length = MultiByteToWideChar(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), nullptr, 0);
+    }
+    if (length <= 0)
+    {
+        return {};
+    }
+
+    std::wstring result(static_cast<size_t>(length), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), &result[0], length);
+    return result;
+}
+
+static std::string wide_to_utf8(const std::wstring &value)
+{
+    if (value.empty())
+    {
+        return {};
+    }
+
+    int length = WideCharToMultiByte(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), nullptr, 0, nullptr, nullptr);
+    if (length <= 0)
+    {
+        return {};
+    }
+
+    std::string result(static_cast<size_t>(length), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), &result[0], length, nullptr, nullptr);
+    return result;
+}
+
+static std::wstring trim_wide(std::wstring value)
+{
+    while (!value.empty() && std::iswspace(value.front()))
+    {
+        value.erase(value.begin());
+    }
+    while (!value.empty() && std::iswspace(value.back()))
+    {
+        value.pop_back();
+    }
+    return value;
+}
+
+static std::string winhttp_error(const char *operation)
+{
+    return std::string(operation) + " failed with Windows error " + std::to_string(GetLastError());
+}
+
+static void collect_response_headers(const std::wstring &rawHeaders, NativeFetchResponse &response)
+{
+    size_t start = 0;
+    bool firstLine = true;
+    while (start <= rawHeaders.size())
+    {
+        size_t end = rawHeaders.find(L"\r\n", start);
+        std::wstring line = end == std::wstring::npos ? rawHeaders.substr(start) : rawHeaders.substr(start, end - start);
+        if (line.empty())
+        {
+            break;
+        }
+
+        if (!firstLine)
+        {
+            size_t colon = line.find(L':');
+            if (colon != std::wstring::npos)
+            {
+                std::wstring name = trim_wide(line.substr(0, colon));
+                std::wstring value = trim_wide(line.substr(colon + 1));
+                if (!name.empty())
+                {
+                    response.headers.emplace_back(wide_to_utf8(name), wide_to_utf8(value));
+                }
+            }
+        }
+
+        firstLine = false;
+        if (end == std::wstring::npos)
+        {
+            break;
+        }
+        start = end + 2;
+    }
+}
+
+static NativeFetchResponse perform_native_fetch(const NativeFetchRequest &request)
+{
+    NativeFetchResponse response;
+    std::wstring wideUrl = utf8_to_wide(request.url);
+    if (wideUrl.empty())
+    {
+        response.error = "fetch URL must be a valid UTF-8 string";
+        return response;
+    }
+
+    URL_COMPONENTS components{};
+    components.dwStructSize = sizeof(components);
+    components.dwSchemeLength = static_cast<DWORD>(-1);
+    components.dwHostNameLength = static_cast<DWORD>(-1);
+    components.dwUrlPathLength = static_cast<DWORD>(-1);
+    components.dwExtraInfoLength = static_cast<DWORD>(-1);
+
+    if (!WinHttpCrackUrl(wideUrl.c_str(), static_cast<DWORD>(wideUrl.size()), 0, &components))
+    {
+        response.error = winhttp_error("WinHttpCrackUrl");
+        return response;
+    }
+
+    if (components.nScheme != INTERNET_SCHEME_HTTP && components.nScheme != INTERNET_SCHEME_HTTPS)
+    {
+        response.error = "fetch only supports http:// and https:// URLs";
+        return response;
+    }
+
+    std::wstring host;
+    if (components.lpszHostName != nullptr && components.dwHostNameLength > 0)
+    {
+        host.assign(components.lpszHostName, components.dwHostNameLength);
+    }
+    if (host.empty())
+    {
+        response.error = "fetch URL must include a host";
+        return response;
+    }
+
+    std::wstring path = L"/";
+    if (components.lpszUrlPath != nullptr && components.dwUrlPathLength > 0)
+    {
+        path.assign(components.lpszUrlPath, components.dwUrlPathLength);
+    }
+    if (components.lpszExtraInfo != nullptr && components.dwExtraInfoLength > 0)
+    {
+        path.append(components.lpszExtraInfo, components.dwExtraInfoLength);
+    }
+
+    if (request.body.size() > MAXDWORD || request.headers.size() > MAXDWORD)
+    {
+        response.error = "fetch request is too large";
+        return response;
+    }
+
+    WinHttpScopedHandle session{WinHttpOpen(L"MachiUI/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0)};
+    if (!session)
+    {
+        response.error = winhttp_error("WinHttpOpen");
+        return response;
+    }
+    WinHttpSetTimeouts(session, 30000, 30000, 30000, 30000);
+
+    WinHttpScopedHandle connect{WinHttpConnect(session, host.c_str(), components.nPort, 0)};
+    if (!connect)
+    {
+        response.error = winhttp_error("WinHttpConnect");
+        return response;
+    }
+
+    std::wstring method = utf8_to_wide(request.method.empty() ? std::string("GET") : request.method);
+    DWORD flags = components.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0;
+    WinHttpScopedHandle httpRequest{WinHttpOpenRequest(connect, method.c_str(), path.c_str(), nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags)};
+    if (!httpRequest)
+    {
+        response.error = winhttp_error("WinHttpOpenRequest");
+        return response;
+    }
+
+    std::wstring wideHeaders = utf8_to_wide(request.headers);
+    LPCWSTR headerPtr = wideHeaders.empty() ? WINHTTP_NO_ADDITIONAL_HEADERS : wideHeaders.c_str();
+    DWORD headerLength = wideHeaders.empty() ? 0 : static_cast<DWORD>(wideHeaders.size());
+    DWORD bodyLength = request.hasBody ? static_cast<DWORD>(request.body.size()) : 0;
+    LPVOID bodyPtr = bodyLength == 0 ? WINHTTP_NO_REQUEST_DATA : const_cast<char *>(request.body.data());
+
+    if (!WinHttpSendRequest(httpRequest, headerPtr, headerLength, bodyPtr, bodyLength, bodyLength, 0))
+    {
+        response.error = winhttp_error("WinHttpSendRequest");
+        return response;
+    }
+
+    if (!WinHttpReceiveResponse(httpRequest, nullptr))
+    {
+        response.error = winhttp_error("WinHttpReceiveResponse");
+        return response;
+    }
+
+    DWORD statusCode = 0;
+    DWORD statusCodeSize = sizeof(statusCode);
+    if (WinHttpQueryHeaders(httpRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statusCodeSize, WINHTTP_NO_HEADER_INDEX))
+    {
+        response.status = static_cast<int>(statusCode);
+    }
+
+    DWORD statusTextSize = 0;
+    if (!WinHttpQueryHeaders(httpRequest, WINHTTP_QUERY_STATUS_TEXT, WINHTTP_HEADER_NAME_BY_INDEX, WINHTTP_NO_OUTPUT_BUFFER, &statusTextSize, WINHTTP_NO_HEADER_INDEX) &&
+        GetLastError() == ERROR_INSUFFICIENT_BUFFER && statusTextSize > 0)
+    {
+        std::wstring statusText(statusTextSize / sizeof(wchar_t), L'\0');
+        if (WinHttpQueryHeaders(httpRequest, WINHTTP_QUERY_STATUS_TEXT, WINHTTP_HEADER_NAME_BY_INDEX, &statusText[0], &statusTextSize, WINHTTP_NO_HEADER_INDEX))
+        {
+            size_t charCount = statusTextSize / sizeof(wchar_t);
+            if (charCount > 0 && statusText[charCount - 1] == L'\0')
+            {
+                --charCount;
+            }
+            statusText.resize(charCount);
+            response.statusText = wide_to_utf8(statusText);
+        }
+    }
+
+    DWORD rawHeaderSize = 0;
+    if (!WinHttpQueryHeaders(httpRequest, WINHTTP_QUERY_RAW_HEADERS_CRLF, WINHTTP_HEADER_NAME_BY_INDEX, WINHTTP_NO_OUTPUT_BUFFER, &rawHeaderSize, WINHTTP_NO_HEADER_INDEX) &&
+        GetLastError() == ERROR_INSUFFICIENT_BUFFER && rawHeaderSize > 0)
+    {
+        std::wstring rawHeaders(rawHeaderSize / sizeof(wchar_t), L'\0');
+        if (WinHttpQueryHeaders(httpRequest, WINHTTP_QUERY_RAW_HEADERS_CRLF, WINHTTP_HEADER_NAME_BY_INDEX, &rawHeaders[0], &rawHeaderSize, WINHTTP_NO_HEADER_INDEX))
+        {
+            size_t charCount = rawHeaderSize / sizeof(wchar_t);
+            if (charCount > 0 && rawHeaders[charCount - 1] == L'\0')
+            {
+                --charCount;
+            }
+            rawHeaders.resize(charCount);
+            collect_response_headers(rawHeaders, response);
+        }
+    }
+
+    DWORD available = 0;
+    do
+    {
+        available = 0;
+        if (!WinHttpQueryDataAvailable(httpRequest, &available))
+        {
+            response.error = winhttp_error("WinHttpQueryDataAvailable");
+            return response;
+        }
+
+        if (available == 0)
+        {
+            break;
+        }
+
+        size_t offset = response.body.size();
+        response.body.resize(offset + available);
+        DWORD downloaded = 0;
+        if (!WinHttpReadData(httpRequest, &response.body[offset], available, &downloaded))
+        {
+            response.error = winhttp_error("WinHttpReadData");
+            return response;
+        }
+        response.body.resize(offset + downloaded);
+    } while (available > 0);
+
+    return response;
+}
+#else
+static NativeFetchResponse perform_native_fetch(const NativeFetchRequest &)
+{
+    NativeFetchResponse response;
+    response.error = "fetch is not implemented on this platform";
+    return response;
+}
+#endif
+
+static JSValue js_fetch_response_to_value(JSContext *ctx, const NativeFetchRequest &request, const NativeFetchResponse &response)
+{
+    JSValue result = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, result, "ok", JS_NewBool(ctx, response.status >= 200 && response.status < 300));
+    JS_SetPropertyStr(ctx, result, "status", JS_NewInt32(ctx, response.status));
+    JS_SetPropertyStr(ctx, result, "statusText", JS_NewString(ctx, response.statusText.c_str()));
+    JS_SetPropertyStr(ctx, result, "url", JS_NewString(ctx, request.url.c_str()));
+    JS_SetPropertyStr(ctx, result, "body", JS_NewStringLen(ctx, response.body.data(), response.body.size()));
+
+    JSValue headers = JS_NewArray(ctx);
+    for (uint32_t index = 0; index < response.headers.size(); ++index)
+    {
+        JSValue entry = JS_NewArray(ctx);
+        JS_SetPropertyUint32(ctx, entry, 0, JS_NewString(ctx, response.headers[index].first.c_str()));
+        JS_SetPropertyUint32(ctx, entry, 1, JS_NewString(ctx, response.headers[index].second.c_str()));
+        JS_SetPropertyUint32(ctx, headers, index, entry);
+    }
+    JS_SetPropertyStr(ctx, result, "headers", headers);
+
+    return result;
+}
+
+static JSValue js_is_network_enabled(JSContext *ctx, JSValueConst this_val,
+                                     int argc, JSValueConst *argv)
+{
+    ScriptManager *sm = static_cast<ScriptManager *>(JS_GetContextOpaque(ctx));
+    return JS_NewBool(ctx, sm != nullptr && sm->isNetworkEnabled());
+}
+
+static JSValue js_fetch_sync(JSContext *ctx, JSValueConst this_val,
+                             int argc, JSValueConst *argv)
+{
+    ScriptManager *sm = static_cast<ScriptManager *>(JS_GetContextOpaque(ctx));
+    if (sm == nullptr || !sm->isNetworkEnabled())
+    {
+        return JS_ThrowTypeError(ctx, "MachiUI network capability is disabled. Enable ScriptManager::setNetworkEnabled(true) from the host runtime before using fetch().");
+    }
+
+    NativeFetchRequest request;
+    if (!read_fetch_request(ctx, argc, argv, request))
+    {
+        return JS_EXCEPTION;
+    }
+
+    NativeFetchResponse response = perform_native_fetch(request);
+    if (!response.error.empty())
+    {
+        return JS_ThrowInternalError(ctx, "%s", response.error.c_str());
+    }
+
+    return js_fetch_response_to_value(ctx, request, response);
+}
+
+static void install_fetch_shim(JSContext *ctx)
+{
+    static const char *source = R"JS(
+(function () {
+  function isPresent(value) {
+    return value !== undefined && value !== null;
+  }
+
+  function Headers(init) {
+    this._map = {};
+    if (init) {
+      this._init(init);
+    }
+  }
+
+  Headers.prototype._normalizeName = function (name) {
+    return String(name).toLowerCase();
+  };
+
+  Headers.prototype._init = function (init) {
+    var index;
+    var entry;
+
+    if (init instanceof Headers) {
+      var copied = init.toArray();
+      for (index = 0; index < copied.length; index++) {
+        this.append(copied[index][0], copied[index][1]);
+      }
+      return;
+    }
+
+    if (Array.isArray(init)) {
+      for (index = 0; index < init.length; index++) {
+        entry = init[index];
+        if (entry && entry.length >= 2) {
+          this.append(entry[0], entry[1]);
+        }
+      }
+      return;
+    }
+
+    if (typeof init === "object") {
+      for (var key in init) {
+        if (Object.prototype.hasOwnProperty.call(init, key)) {
+          this.set(key, init[key]);
+        }
+      }
+    }
+  };
+
+  Headers.prototype.append = function (name, value) {
+    var key = this._normalizeName(name);
+    var stringValue = String(value);
+    if (this._map[key]) {
+      this._map[key].value += ", " + stringValue;
+    } else {
+      this._map[key] = { name: String(name), value: stringValue };
+    }
+  };
+
+  Headers.prototype.set = function (name, value) {
+    this._map[this._normalizeName(name)] = { name: String(name), value: String(value) };
+  };
+
+  Headers.prototype.get = function (name) {
+    var entry = this._map[this._normalizeName(name)];
+    return entry ? entry.value : null;
+  };
+
+  Headers.prototype.has = function (name) {
+    return this._map[this._normalizeName(name)] !== undefined;
+  };
+
+  Headers.prototype.delete = function (name) {
+    delete this._map[this._normalizeName(name)];
+  };
+
+  Headers.prototype.forEach = function (callback, thisArg) {
+    var entries = this.toArray();
+    for (var index = 0; index < entries.length; index++) {
+      callback.call(thisArg, entries[index][1], entries[index][0], this);
+    }
+  };
+
+  Headers.prototype.toArray = function () {
+    var result = [];
+    for (var key in this._map) {
+      if (Object.prototype.hasOwnProperty.call(this._map, key)) {
+        result.push([this._map[key].name, this._map[key].value]);
+      }
+    }
+    return result;
+  };
+
+  Headers.prototype.entries = function () {
+    var entries = this.toArray();
+    return entries[Symbol.iterator]();
+  };
+
+  Headers.prototype.keys = function () {
+    return this.toArray().map(function (entry) { return entry[0]; })[Symbol.iterator]();
+  };
+
+  Headers.prototype.values = function () {
+    return this.toArray().map(function (entry) { return entry[1]; })[Symbol.iterator]();
+  };
+
+  if (typeof Symbol !== "undefined" && Symbol.iterator) {
+    Headers.prototype[Symbol.iterator] = Headers.prototype.entries;
+  }
+
+  function Response(body, init) {
+    init = init || {};
+    this._body = isPresent(body) ? String(body) : "";
+    this.status = init.status === undefined ? 200 : Number(init.status);
+    this.statusText = init.statusText === undefined ? "" : String(init.statusText);
+    this.headers = new Headers(init.headers);
+    this.ok = this.status >= 200 && this.status < 300;
+    this.url = init.url === undefined ? "" : String(init.url);
+    this.redirected = false;
+    this.type = "basic";
+    this.bodyUsed = false;
+  }
+
+  Response.prototype.text = function () {
+    this.bodyUsed = true;
+    return Promise.resolve(this._body);
+  };
+
+  Response.prototype.json = function () {
+    return this.text().then(function (text) {
+      return JSON.parse(text);
+    });
+  };
+
+  Response.prototype.arrayBuffer = function () {
+    this.bodyUsed = true;
+    var buffer = new ArrayBuffer(this._body.length);
+    var view = new Uint8Array(buffer);
+    for (var index = 0; index < this._body.length; index++) {
+      view[index] = this._body.charCodeAt(index) & 255;
+    }
+    return Promise.resolve(buffer);
+  };
+
+  Response.prototype.clone = function () {
+    return new Response(this._body, {
+      status: this.status,
+      statusText: this.statusText,
+      headers: this.headers,
+      url: this.url
+    });
+  };
+
+  function Request(input, init) {
+    init = init || {};
+
+    if (input instanceof Request) {
+      this.url = input.url;
+      this.method = input.method;
+      this.headers = new Headers(input.headers);
+      this.body = input.body;
+    } else if (input && typeof input === "object" && input.url !== undefined) {
+      this.url = String(input.url);
+      this.method = input.method ? String(input.method) : "GET";
+      this.headers = new Headers(input.headers);
+      this.body = input.body;
+    } else {
+      this.url = String(input);
+      this.method = "GET";
+      this.headers = new Headers();
+      this.body = undefined;
+    }
+
+    if (init.method !== undefined) {
+      this.method = String(init.method);
+    }
+    this.method = this.method.toUpperCase();
+
+    if (init.headers !== undefined) {
+      this.headers = new Headers(init.headers);
+    }
+    if (init.body !== undefined) {
+      this.body = init.body;
+    }
+  }
+
+  Request.prototype.clone = function () {
+    return new Request(this);
+  };
+
+  if (typeof globalThis.Headers === "undefined") {
+    globalThis.Headers = Headers;
+  }
+  if (typeof globalThis.Response === "undefined") {
+    globalThis.Response = Response;
+  }
+  if (typeof globalThis.Request === "undefined") {
+    globalThis.Request = Request;
+  }
+
+  globalThis.fetch = function (input, init) {
+    return new Promise(function (resolve, reject) {
+      try {
+        var request = new Request(input, init || {});
+        var headers = {};
+        request.headers.forEach(function (value, name) {
+          headers[name] = value;
+        });
+
+        var nativeResponse = MachiNative.fetchSync(request.url, {
+          method: request.method,
+          headers: headers,
+          body: request.body
+        });
+
+        resolve(new Response(nativeResponse.body, {
+          status: nativeResponse.status,
+          statusText: nativeResponse.statusText,
+          headers: nativeResponse.headers,
+          url: nativeResponse.url
+        }));
+      } catch (error) {
+        reject(error);
+      }
+    });
+  };
+
+  var runtime = globalThis.MachiRuntime || {};
+  runtime.hasCapability = function (name) {
+    return name === "network" ? MachiNative.isNetworkEnabled() : false;
+  };
+  try {
+    Object.defineProperty(runtime, "capabilities", {
+      configurable: true,
+      enumerable: true,
+      get: function () {
+        return { network: MachiNative.isNetworkEnabled() };
+      }
+    });
+  } catch (error) {
+    runtime.capabilities = { network: MachiNative.isNetworkEnabled() };
+  }
+  globalThis.MachiRuntime = runtime;
+})();
+)JS";
+
+    JSValue result = JS_Eval(ctx, source, std::strlen(source), "<machi-fetch-shim>", JS_EVAL_TYPE_GLOBAL);
+    if (JS_IsException(result))
+    {
+        log_js_exception(ctx);
+    }
+    JS_FreeValue(ctx, result);
+}
+
 // Binding Default Elements (Root, Text, Image, etc.)
 void register_default_elements(JSContext *ctx)
 {
@@ -667,8 +2351,10 @@ void register_default_elements(JSContext *ctx)
 }
 
 // 네이티브 메서드 등록 함수
-void register_native_method(JSContext *ctx)
+void register_native_method(JSContext *ctx, ScriptManager *manager)
 {
+    ensure_event_runtime(ctx, manager);
+
     JSValue native = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, native, "createElement", JS_NewCFunction(ctx, js_create_element, "createElement", 1));
     JS_SetPropertyStr(ctx, native, "createRoot", JS_NewCFunction(ctx, js_create_root, "createRoot", 1));
@@ -677,11 +2363,17 @@ void register_native_method(JSContext *ctx)
     JS_SetPropertyStr(ctx, native, "removeChild", JS_NewCFunction(ctx, js_remove_child, "removeChild", 2));
     JS_SetPropertyStr(ctx, native, "clearChildren", JS_NewCFunction(ctx, js_clear_children, "clearChildren", 1));
     JS_SetPropertyStr(ctx, native, "updateProps", JS_NewCFunction(ctx, js_update_props, "updateProps", 3));
+    JS_SetPropertyStr(ctx, native, "updateEventHandler", JS_NewCFunction(ctx, js_update_event_handler, "updateEventHandler", 3));
+    JS_SetPropertyStr(ctx, native, "updateGlobalEventHandler", JS_NewCFunction(ctx, js_update_global_event_handler, "updateGlobalEventHandler", 2));
+    JS_SetPropertyStr(ctx, native, "getBoundingClientRect", JS_NewCFunction(ctx, js_get_bounding_client_rect, "getBoundingClientRect", 1));
     JS_SetPropertyStr(ctx, native, "createTextNode", JS_NewCFunction(ctx, js_create_text_node, "createTextNode", 1));
     JS_SetPropertyStr(ctx, native, "updateText", JS_NewCFunction(ctx, js_update_text, "updateText", 2));
+    JS_SetPropertyStr(ctx, native, "isNetworkEnabled", JS_NewCFunction(ctx, js_is_network_enabled, "isNetworkEnabled", 0));
+    JS_SetPropertyStr(ctx, native, "fetchSync", JS_NewCFunction(ctx, js_fetch_sync, "fetchSync", 2));
 
     register_default_elements(ctx);
     JSValue global = JS_GetGlobalObject(ctx);
     JS_SetPropertyStr(ctx, global, "MachiNative", native);
     JS_FreeValue(ctx, global);
+    install_fetch_shim(ctx);
 }

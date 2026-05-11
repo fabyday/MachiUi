@@ -38,11 +38,12 @@ public:
 
 private:
     HWND hwnd;
+    bool closeRequested;
 };
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-Win32Window::Win32Window() : hwnd(nullptr)
+Win32Window::Win32Window() : hwnd(nullptr), closeRequested(false)
 {
 }
 
@@ -62,10 +63,12 @@ void Win32Window::update()
 
 void Win32Window::close()
 {
+    closeRequested = true;
     if (hwnd != nullptr)
     {
-        DestroyWindow(hwnd);
+        HWND windowToDestroy = hwnd;
         hwnd = nullptr;
+        DestroyWindow(windowToDestroy);
     }
 }
 
@@ -81,7 +84,7 @@ void Win32Window::hide()
 
 bool Win32Window::shouldClose() const
 {
-    return false;
+    return closeRequested || hwnd == nullptr;
 }
 
 void Win32Window::setBorderless(bool use)
@@ -118,7 +121,7 @@ IWindow *createWindow()
     RegisterClassExW(&wc);
 
     HWND hwnd = CreateWindowExW(0, MACHI_WINDOW_CLASS_NAME, nullptr,
-                                WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+                                WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720,
                                 NULL, NULL, GetModuleHandle(NULL), win);
     win->setHWND(hwnd);
 
@@ -147,9 +150,10 @@ static KeyEvent makeKeyEvent(WPARAM wParam, bool isPressed)
         isKeyDown(VK_LWIN) || isKeyDown(VK_RWIN)};
 }
 
-static MouseEvent makeMouseEvent(LPARAM lParam, MouseButton button, bool isPressed)
+static MouseEvent makeMouseEvent(LPARAM lParam, MouseButton button, bool isPressed, MouseEvent::Type type)
 {
     return MouseEvent{
+        type,
         static_cast<float>(static_cast<short>(LOWORD(lParam))),
         static_cast<float>(static_cast<short>(HIWORD(lParam))),
         button,
@@ -185,7 +189,7 @@ static void handleWindowEvent(IWindow *targetWindow, HWND, UINT message, WPARAM,
     }
 }
 
-static void handleInputEvent(IWindow *targetWindow, HWND, UINT message, WPARAM wParam, LPARAM lParam)
+static void handleInputEvent(IWindow *targetWindow, HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     if (targetWindow == nullptr || targetWindow->inputManager == nullptr)
     {
@@ -203,25 +207,34 @@ static void handleInputEvent(IWindow *targetWindow, HWND, UINT message, WPARAM w
         targetWindow->inputManager->emitKeyEvent(makeKeyEvent(wParam, false));
         break;
     case WM_MOUSEMOVE:
-        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Left, false));
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Left, false, MouseEvent::Type::Move));
         break;
     case WM_LBUTTONDOWN:
-        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Left, true));
+        SetCapture(hwnd);
+        SetFocus(hwnd);
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Left, true, MouseEvent::Type::Down));
         break;
     case WM_LBUTTONUP:
-        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Left, false));
+        ReleaseCapture();
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Left, false, MouseEvent::Type::Up));
         break;
     case WM_MBUTTONDOWN:
-        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Middle, true));
+        SetCapture(hwnd);
+        SetFocus(hwnd);
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Middle, true, MouseEvent::Type::Down));
         break;
     case WM_MBUTTONUP:
-        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Middle, false));
+        ReleaseCapture();
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Middle, false, MouseEvent::Type::Up));
         break;
     case WM_RBUTTONDOWN:
-        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Right, true));
+        SetCapture(hwnd);
+        SetFocus(hwnd);
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Right, true, MouseEvent::Type::Down));
         break;
     case WM_RBUTTONUP:
-        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Right, false));
+        ReleaseCapture();
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Right, false, MouseEvent::Type::Up));
         break;
     case WM_MOUSEWHEEL:
         targetWindow->inputManager->emitMouseWheelEvent(MouseWheelEvent{
@@ -271,6 +284,32 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM l
     }
 
     IWindow *targetWindow = reinterpret_cast<IWindow *>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+
+    switch (message)
+    {
+    case WM_CLOSE:
+        handleWindowEvent(targetWindow, hwnd, message, wParam, lParam);
+        if (targetWindow != nullptr)
+        {
+            targetWindow->close();
+        }
+        else
+        {
+            DestroyWindow(hwnd);
+        }
+        return 0;
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        return 0;
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_PAINT:
+        ValidateRect(hwnd, nullptr);
+        return 0;
+    default:
+        break;
+    }
+
     if (translateMessage2IMessage(targetWindow, hwnd, message, wParam, lParam))
     {
     }
