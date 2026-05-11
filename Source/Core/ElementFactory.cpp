@@ -8,6 +8,7 @@
 #include "../Elements/Img.h"
 #include "../Elements/Text.h"
 #include "../Elements/Span.h"
+#include "../Elements/NativeView.h"
 
 inline static void initializeBasicElements(ElementFactory *elementFactory);
 
@@ -61,6 +62,10 @@ static void initializeBasicElements(ElementFactory *elementFactory)
                                         { return std::make_unique<ButtonElement>(uid); });
     elementFactory->registerElementType("span", [](uint64_t uid)
                                         { return std::make_unique<SpanElement>(uid); });
+    elementFactory->registerElementType("native-view", [](uint64_t uid)
+                                        { return std::make_unique<NativeViewElement>(uid); });
+    elementFactory->registerElementType("NativeView", [](uint64_t uid)
+                                        { return std::make_unique<NativeViewElement>(uid); });
 };
 
 REGISTER_UI_COMPONENT(ElementFactory, ServicePhase::System);

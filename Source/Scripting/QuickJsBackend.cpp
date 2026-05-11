@@ -8,6 +8,8 @@
 #include "NativeBinder.h"
 #include "ClassRegistry.h"
 #include "../Core/InputManager.h"
+#include "../Core/ActionRegistry.h"
+#include "../Core/NativeViewRegistry.h"
 #include "../Core/LogManager.h"
 #include "../Core/ILogger.h"
 #include "../Core/Message.h"
@@ -383,6 +385,8 @@ static JSValue js_is_network_enabled(JSContext *ctx, JSValueConst this_val,
                                      int argc, JSValueConst *argv);
 static JSValue js_fetch_sync(JSContext *ctx, JSValueConst this_val,
                              int argc, JSValueConst *argv);
+static JSValue js_invoke_action(JSContext *ctx, JSValueConst this_val,
+                                int argc, JSValueConst *argv);
 
 ////////////////////////////////////////////////////////////////////////////
 
@@ -420,6 +424,7 @@ struct JsEventRuntime
     float lastPointerY = 0.0f;
     bool pointerDown = false;
     bool dragging = false;
+    bool nativePointerCaptured = false;
 };
 
 static std::unordered_map<JSContext *, std::unique_ptr<JsEventRuntime>> g_eventRuntimes;
@@ -868,6 +873,12 @@ static void dispatch_key_input(JsEventRuntime *runtime, const KeyEvent &event)
         return;
     }
 
+    if (runtime->focusedElementId == 0 && runtime->scriptManager != nullptr && runtime->scriptManager->getNativeViewRegistry() != nullptr &&
+        runtime->scriptManager->getNativeViewRegistry()->dispatchKeyEvent(event))
+    {
+        return;
+    }
+
     const std::string eventName = event.isPressed ? "onKeyDown" : "onKeyUp";
     const char *eventType = event.isPressed ? "keyDown" : "keyUp";
     const char *globalEventType = event.isPressed ? "keydown" : "keyup";
@@ -923,14 +934,21 @@ static void dispatch_mouse_input(JsEventRuntime *runtime, const MouseEvent &even
         dispatch_event_to_path(runtime, targetId, "onPointerDown", jsEvent);
         dispatch_event_to_path(runtime, targetId, "onMouseDown", jsEvent);
         JS_FreeValue(runtime->context, jsEvent);
+        if (targetId == 0 && runtime->scriptManager != nullptr && runtime->scriptManager->getNativeViewRegistry() != nullptr)
+        {
+            runtime->nativePointerCaptured = runtime->scriptManager->getNativeViewRegistry()->dispatchMouseEvent(event);
+        }
         return;
     }
 
     if (event.type == MouseEvent::Type::Move)
     {
-        const uint64_t targetId = runtime->pointerDown && runtime->pointerCaptureElementId != 0
-                                      ? runtime->pointerCaptureElementId
-                                      : hit_test_event_target(runtime, {"onPointerMove", "onMouseMove"}, event.x, event.y);
+        const bool routeToNative = runtime->nativePointerCaptured && runtime->scriptManager != nullptr && runtime->scriptManager->getNativeViewRegistry() != nullptr;
+        const uint64_t targetId = routeToNative
+                                      ? 0
+                                      : (runtime->pointerDown && runtime->pointerCaptureElementId != 0
+                                             ? runtime->pointerCaptureElementId
+                                             : hit_test_event_target(runtime, {"onPointerMove", "onMouseMove"}, event.x, event.y));
         const float deltaX = event.x - runtime->lastPointerX;
         const float deltaY = event.y - runtime->lastPointerY;
 
@@ -943,6 +961,15 @@ static void dispatch_mouse_input(JsEventRuntime *runtime, const MouseEvent &even
         JS_FreeValue(runtime->context, globalMouseEvent);
 
         JSValue jsEvent = create_pointer_event(runtime->context, "pointerMove", targetId, event, deltaX, deltaY);
+        if (routeToNative)
+        {
+            runtime->scriptManager->getNativeViewRegistry()->dispatchMouseEvent(event);
+            runtime->lastPointerX = event.x;
+            runtime->lastPointerY = event.y;
+            JS_FreeValue(runtime->context, jsEvent);
+            return;
+        }
+
         dispatch_event_to_path(runtime, targetId, "onPointerMove", jsEvent);
         dispatch_event_to_path(runtime, targetId, "onMouseMove", jsEvent);
 
@@ -965,12 +992,19 @@ static void dispatch_mouse_input(JsEventRuntime *runtime, const MouseEvent &even
         runtime->lastPointerX = event.x;
         runtime->lastPointerY = event.y;
         JS_FreeValue(runtime->context, jsEvent);
+        if (targetId == 0 && runtime->scriptManager != nullptr && runtime->scriptManager->getNativeViewRegistry() != nullptr)
+        {
+            runtime->scriptManager->getNativeViewRegistry()->dispatchMouseEvent(event);
+        }
         return;
     }
 
-    const uint64_t targetId = runtime->pointerCaptureElementId != 0
-                                  ? runtime->pointerCaptureElementId
-                                  : hit_test_event_target(runtime, {"onPointerUp", "onMouseUp", "onClick", "onDragEnd"}, event.x, event.y);
+    const bool routeToNative = runtime->nativePointerCaptured && runtime->scriptManager != nullptr && runtime->scriptManager->getNativeViewRegistry() != nullptr;
+    const uint64_t targetId = routeToNative
+                                  ? 0
+                                  : (runtime->pointerCaptureElementId != 0
+                                         ? runtime->pointerCaptureElementId
+                                         : hit_test_event_target(runtime, {"onPointerUp", "onMouseUp", "onClick", "onDragEnd"}, event.x, event.y));
     const float deltaX = event.x - runtime->lastPointerX;
     const float deltaY = event.y - runtime->lastPointerY;
 
@@ -983,6 +1017,20 @@ static void dispatch_mouse_input(JsEventRuntime *runtime, const MouseEvent &even
     JS_FreeValue(runtime->context, globalMouseEvent);
 
     JSValue jsEvent = create_pointer_event(runtime->context, "pointerUp", targetId, event, deltaX, deltaY);
+    if (routeToNative)
+    {
+        runtime->scriptManager->getNativeViewRegistry()->dispatchMouseEvent(event);
+        runtime->pointerDown = false;
+        runtime->dragging = false;
+        runtime->nativePointerCaptured = false;
+        runtime->pointerCaptureElementId = 0;
+        runtime->pointerDownElementId = 0;
+        runtime->lastPointerX = event.x;
+        runtime->lastPointerY = event.y;
+        JS_FreeValue(runtime->context, jsEvent);
+        return;
+    }
+
     dispatch_event_to_path(runtime, targetId, "onPointerUp", jsEvent);
     dispatch_event_to_path(runtime, targetId, "onMouseUp", jsEvent);
     if (runtime->dragging)
@@ -999,11 +1047,16 @@ static void dispatch_mouse_input(JsEventRuntime *runtime, const MouseEvent &even
 
     runtime->pointerDown = false;
     runtime->dragging = false;
+    runtime->nativePointerCaptured = false;
     runtime->pointerCaptureElementId = 0;
     runtime->pointerDownElementId = 0;
     runtime->lastPointerX = event.x;
     runtime->lastPointerY = event.y;
     JS_FreeValue(runtime->context, jsEvent);
+    if (targetId == 0 && runtime->scriptManager != nullptr && runtime->scriptManager->getNativeViewRegistry() != nullptr)
+    {
+        runtime->scriptManager->getNativeViewRegistry()->dispatchMouseEvent(event);
+    }
 }
 
 static void dispatch_window_input(JsEventRuntime *runtime, const WindowEvent &event)
@@ -2075,6 +2128,48 @@ static JSValue js_fetch_sync(JSContext *ctx, JSValueConst this_val,
     return js_fetch_response_to_value(ctx, request, response);
 }
 
+static JSValue js_action_result_to_value(JSContext *ctx, const ActionResult &result)
+{
+    JSValue value = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, value, "ok", JS_NewBool(ctx, result.ok));
+    JS_SetPropertyStr(ctx, value, "payload", JS_NewStringLen(ctx, result.payloadJson.data(), result.payloadJson.size()));
+    JS_SetPropertyStr(ctx, value, "error", JS_NewString(ctx, result.error.c_str()));
+    return value;
+}
+
+static JSValue js_invoke_action(JSContext *ctx, JSValueConst this_val,
+                                int argc, JSValueConst *argv)
+{
+    ScriptManager *sm = static_cast<ScriptManager *>(JS_GetContextOpaque(ctx));
+    if (sm == nullptr || sm->getActionRegistry() == nullptr)
+    {
+        return JS_ThrowTypeError(ctx, "MachiUI action registry is not available");
+    }
+
+    if (argc < 1 || JS_IsUndefined(argv[0]) || JS_IsNull(argv[0]))
+    {
+        return JS_ThrowTypeError(ctx, "invokeAction expects an action name");
+    }
+
+    std::string name;
+    if (!js_value_to_std_string(ctx, argv[0], name))
+    {
+        return JS_EXCEPTION;
+    }
+
+    std::string payloadJson = "null";
+    if (argc > 1 && !JS_IsUndefined(argv[1]) && !JS_IsNull(argv[1]))
+    {
+        if (!js_value_to_std_string(ctx, argv[1], payloadJson))
+        {
+            return JS_EXCEPTION;
+        }
+    }
+
+    ActionResult result = sm->getActionRegistry()->invoke(name, payloadJson);
+    return js_action_result_to_value(ctx, result);
+}
+
 static void install_fetch_shim(JSContext *ctx)
 {
     static const char *source = R"JS(
@@ -2319,6 +2414,45 @@ static void install_fetch_shim(JSContext *ctx)
     runtime.capabilities = { network: MachiNative.isNetworkEnabled() };
   }
   globalThis.MachiRuntime = runtime;
+
+  function parseActionPayload(payload) {
+    if (payload === undefined || payload === null || payload === "") {
+      return null;
+    }
+    try {
+      return JSON.parse(payload);
+    } catch (error) {
+      return payload;
+    }
+  }
+
+  function stringifyActionPayload(payload) {
+    if (payload === undefined) {
+      return "null";
+    }
+    return JSON.stringify(payload);
+  }
+
+  var machi = globalThis.Machi || {};
+  var actions = machi.actions || {};
+  actions.invokeSync = function (name, payload) {
+    var result = MachiNative.invokeAction(String(name), stringifyActionPayload(payload));
+    if (!result.ok) {
+      throw new Error(result.error || ("Action failed: " + name));
+    }
+    return parseActionPayload(result.payload);
+  };
+  actions.invoke = function (name, payload) {
+    return new Promise(function (resolve, reject) {
+      try {
+        resolve(actions.invokeSync(name, payload));
+      } catch (error) {
+        reject(error);
+      }
+    });
+  };
+  machi.actions = actions;
+  globalThis.Machi = machi;
 })();
 )JS";
 
@@ -2370,6 +2504,7 @@ void register_native_method(JSContext *ctx, ScriptManager *manager)
     JS_SetPropertyStr(ctx, native, "updateText", JS_NewCFunction(ctx, js_update_text, "updateText", 2));
     JS_SetPropertyStr(ctx, native, "isNetworkEnabled", JS_NewCFunction(ctx, js_is_network_enabled, "isNetworkEnabled", 0));
     JS_SetPropertyStr(ctx, native, "fetchSync", JS_NewCFunction(ctx, js_fetch_sync, "fetchSync", 2));
+    JS_SetPropertyStr(ctx, native, "invokeAction", JS_NewCFunction(ctx, js_invoke_action, "invokeAction", 2));
 
     register_default_elements(ctx);
     JSValue global = JS_GetGlobalObject(ctx);

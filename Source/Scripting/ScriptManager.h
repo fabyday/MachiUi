@@ -10,6 +10,8 @@ class SceneManager;
 class SceneGraph;
 class ScriptManager;
 class InputManager;
+class ActionRegistry;
+class NativeViewRegistry;
 
 struct ScriptExecutionContext
 {
@@ -69,6 +71,8 @@ public:
     IFIleLoader *GetFileLoader() { return m_fileLoader; }
     SceneManager *getSceneManager() { return m_sceneManager; }
     InputManager *getInputManager() { return m_inputManager; }
+    ActionRegistry *getActionRegistry() { return m_actionRegistry; }
+    NativeViewRegistry *getNativeViewRegistry() { return m_nativeViewRegistry; }
     LogManager *getLogManger() { return logManager; }
     void setNetworkEnabled(bool enabled);
     bool isNetworkEnabled() const;
@@ -81,6 +85,8 @@ private:
     IFIleLoader *m_fileLoader = nullptr;
     SceneManager *m_sceneManager = nullptr;
     InputManager *m_inputManager = nullptr;
+    ActionRegistry *m_actionRegistry = nullptr;
+    NativeViewRegistry *m_nativeViewRegistry = nullptr;
     UiEngine *m_engine = nullptr;
     bool m_networkEnabled = false;
 };

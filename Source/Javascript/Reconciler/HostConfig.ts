@@ -15,6 +15,7 @@ import {
   setDocumentRootNativePtr,
   syncHostProps,
 } from "./DomShim";
+import { NativeView, actions, MachiHost } from "./NativeHost";
 import { resolveClassName } from "./StyleSheet";
 
 type HostContext = null;
@@ -417,7 +418,9 @@ function render(element: ReactNode, container?: Container | NativePtr | string) 
 const MachiRenderer = {
   createRoot,
   render,
+  NativeView,
+  actions,
 };
 
-export { createRoot, render };
+export { createRoot, render, NativeView, actions, MachiHost };
 export default MachiRenderer;

@@ -1,6 +1,8 @@
 #include "ScriptManager.h"
 #include "../Core/SceneManager.h"
 #include "../Core/InputManager.h"
+#include "../Core/ActionRegistry.h"
+#include "../Core/NativeViewRegistry.h"
 #include "../Core/LogManager.h"
 #include "../Core/ServiceProvider.h"
 struct JSModuleDef;
@@ -57,6 +59,8 @@ void ScriptManager::onInit(ServiceProvider *provider)
 
     this->m_sceneManager = provider->getService<SceneManager>();
     this->m_inputManager = provider->getService<InputManager>();
+    this->m_actionRegistry = provider->getService<ActionRegistry>();
+    this->m_nativeViewRegistry = provider->getService<NativeViewRegistry>();
     this->logManager = provider->getService<LogManager>();
 }
 

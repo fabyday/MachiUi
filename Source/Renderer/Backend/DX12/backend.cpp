@@ -6,9 +6,11 @@
 #include "Core/SceneManager.h"
 #include "Core/Element.h"
 #include "Elements/Text.h"
+#include "Elements/NativeView.h"
 #include "Common/macro.h"
 #include "Renderer/IRenderer.h"
 #include "Renderer/RenderQueue.h"
+#include "Core/NativeViewRegistry.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -137,6 +139,7 @@ class Dx12RendererImpl : public IRenderer
   Dx12Pipeline pipeline;
   DxTextContext textContext;
   std::unordered_map<uint64_t, ViewId> sceneViewMap;
+  NativeViewRegistry *nativeViewRegistry = nullptr;
   std::unordered_map<HWND, NativeWindowContext> windowContexts;
   std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
 
@@ -187,6 +190,28 @@ static std::optional<std::string> getBackgroundColorAttribute(Element *element)
     return color;
   }
   return std::nullopt;
+}
+
+static std::string getNativeViewStringAttribute(Element *element, const char *primaryKey, const char *secondaryKey, const std::string &fallback)
+{
+  if (auto primary = getStringAttribute(element, primaryKey))
+  {
+    if (!primary->empty())
+    {
+      return *primary;
+    }
+  }
+  if (secondaryKey != nullptr)
+  {
+    if (auto secondary = getStringAttribute(element, secondaryKey))
+    {
+      if (!secondary->empty())
+      {
+        return *secondary;
+      }
+    }
+  }
+  return fallback;
 }
 
 static std::optional<std::string> getTextColorAttribute(Element *element)
@@ -500,6 +525,7 @@ static void collectElementDrawData(
     UINT height,
     std::vector<SolidVertex> &vertices,
     std::vector<TextDrawCommand> &textCommands,
+    std::vector<NativeViewSlot> &nativeViewSlots,
     RgbaColor inheritedTextColor,
     float inheritedFontSize,
     const std::wstring &inheritedFontFamily,
@@ -533,6 +559,18 @@ static void collectElementDrawData(
   if (backgroundColor.has_value())
   {
     appendRectVertices(vertices, rect, width, height, multiplyAlpha(parseColor(backgroundColor.value()), opacity));
+  }
+
+  if (dynamic_cast<NativeViewElement *>(element) != nullptr)
+  {
+    NativeViewSlot slot;
+    slot.elementId = element->getUid();
+    slot.nativeType = getNativeViewStringAttribute(element, "nativeViewType", "viewType", "native-view");
+    slot.viewId = getNativeViewStringAttribute(element, "viewId", "id", std::to_string(element->getUid()));
+    slot.rect = Rect{x, y, elementWidth, elementHeight};
+    slot.visible = element->getVisible() && opacity > 0.0f;
+    slot.zIndex = static_cast<int>(getFloatAttribute(element, "zIndex", 0.0f));
+    nativeViewSlots.push_back(slot);
   }
 
   RgbaColor textColor = inheritedTextColor;
@@ -583,6 +621,7 @@ static void collectElementDrawData(
         height,
         vertices,
         textCommands,
+        nativeViewSlots,
         textColor,
         fontSize,
         fontFamily,
@@ -1218,7 +1257,7 @@ static bool renderVertices(Dx12Context *context, Dx12Pipeline *pipeline, DxTextC
   return SUCCEEDED(presentResult);
 }
 
-static bool renderSceneToWindow(Dx12Context *context, Dx12Pipeline *pipeline, DxTextContext *textContext, NativeWindowContext *windowContext, HWND hwnd, SceneGraph *graph, float elapsedSeconds)
+static bool renderSceneToWindow(Dx12Context *context, Dx12Pipeline *pipeline, DxTextContext *textContext, NativeViewRegistry *nativeViewRegistry, NativeWindowContext *windowContext, HWND hwnd, SceneGraph *graph, float elapsedSeconds)
 {
   UINT width = 0;
   UINT height = 0;
@@ -1241,6 +1280,7 @@ static bool renderSceneToWindow(Dx12Context *context, Dx12Pipeline *pipeline, Dx
 
   std::vector<SolidVertex> vertices;
   std::vector<TextDrawCommand> textCommands;
+  std::vector<NativeViewSlot> nativeViewSlots;
   if (graph != nullptr && graph->getRoot() != nullptr)
   {
     Element *root = graph->getRoot();
@@ -1256,6 +1296,7 @@ static bool renderSceneToWindow(Dx12Context *context, Dx12Pipeline *pipeline, Dx
         height,
         vertices,
         textCommands,
+        nativeViewSlots,
         rgb(31, 42, 68),
         16.0f,
         L"Segoe UI",
@@ -1264,6 +1305,14 @@ static bool renderSceneToWindow(Dx12Context *context, Dx12Pipeline *pipeline, Dx
         0.0f,
         1.0f,
         elapsedSeconds);
+  }
+
+  if (nativeViewRegistry != nullptr)
+  {
+    for (const auto &slot : nativeViewSlots)
+    {
+      nativeViewRegistry->syncSlot(slot);
+    }
   }
 
   return renderVertices(context, pipeline, textContext, windowContext, vertices, textCommands);
@@ -1284,6 +1333,7 @@ void Dx12RendererImpl::onInit(ServiceProvider *provider)
 {
   this->viewManager = provider->getService<ViewManager>();
   this->sceneManager = provider->getService<SceneManager>();
+  this->nativeViewRegistry = provider->getService<NativeViewRegistry>();
 
   if (!initializeDx12Context(&dx12Context))
   {
@@ -1314,6 +1364,11 @@ void Dx12RendererImpl::execute()
   const auto now = std::chrono::steady_clock::now();
   const float elapsedSeconds = std::chrono::duration<float>(now - startTime).count();
 
+  if (nativeViewRegistry != nullptr)
+  {
+    nativeViewRegistry->beginSync();
+  }
+
   for (const auto &[sceneGraphId, viewId] : sceneViewMap)
   {
     SceneGraph *graph = sceneManager->getSceneGraph(sceneGraphId);
@@ -1324,7 +1379,12 @@ void Dx12RendererImpl::execute()
     }
 
     HWND hwnd = static_cast<HWND>(window->getNativeHandle());
-    renderSceneToWindow(&dx12Context, &pipeline, &textContext, &windowContexts[hwnd], hwnd, graph, elapsedSeconds);
+    renderSceneToWindow(&dx12Context, &pipeline, &textContext, nativeViewRegistry, &windowContexts[hwnd], hwnd, graph, elapsedSeconds);
+  }
+
+  if (nativeViewRegistry != nullptr)
+  {
+    nativeViewRegistry->endSync();
   }
 }
 

@@ -38,6 +38,11 @@ declare global {
       body: string;
       headers: Array<[string, string]>;
     };
+    invokeAction(name: string, payloadJson?: string): {
+      ok: boolean;
+      payload: string;
+      error: string;
+    };
   }
 
   var MachiNative: MachiNative;
@@ -47,6 +52,13 @@ declare global {
       readonly network: boolean;
     };
     hasCapability(name: string): boolean;
+  };
+
+  var Machi: {
+    actions: {
+      invoke(name: string, payload?: unknown): Promise<unknown>;
+      invokeSync(name: string, payload?: unknown): unknown;
+    };
   };
 
   type MachiPointerEvent = {
@@ -113,6 +125,16 @@ declare global {
     onWindowBlur?: (event: MachiWindowEvent) => void;
     onWindowClose?: (event: MachiWindowEvent) => void;
   };
+
+  namespace JSX {
+    interface IntrinsicElements {
+      "native-view": Props & {
+        nativeViewType?: string;
+        viewType?: string;
+        viewId?: string;
+      };
+    }
+  }
 
   type Instance = {
     type: string;
