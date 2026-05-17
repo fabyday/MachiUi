@@ -55,6 +55,17 @@ SceneGraph *SceneManager::getSceneGraph(const uint64_t Id)
     return nullptr; // 씬 그래프가 존재하지 않을 때 nullptr 반환
 }
 
+std::vector<SceneGraph *> SceneManager::getSceneGraphs() const
+{
+    std::vector<SceneGraph *> graphs;
+    graphs.reserve(sceneGraphMap.size());
+    for (const auto &entry : sceneGraphMap)
+    {
+        graphs.push_back(entry.second.get());
+    }
+    return graphs;
+}
+
 bool SceneManager::createRoot(uint64_t SceneGraphId)
 {
     SceneGraph *graph = this->getSceneGraph(SceneGraphId);

@@ -609,8 +609,10 @@ function ensureGlobalDispatcher(type: string) {
   const dispatcher = (nativeEvent: any) => {
     const event = normalizeNativeEvent(nativeEvent);
     if (type === "resize" || type === "focus" || type === "blur" || type === "close") {
+      event.currentTarget = windowShim;
       dispatchToTarget(windowShim, event);
     }
+    event.currentTarget = documentShim;
     dispatchToTarget(documentShim, event);
   };
 

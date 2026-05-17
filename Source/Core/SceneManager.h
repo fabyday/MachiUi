@@ -42,6 +42,7 @@ public:
     uint64_t createSceneGraph(const std::string &sceneName);
     void destroySceneGraph(const uint64_t Id);
     SceneGraph *getSceneGraph(const uint64_t Id);
+    std::vector<SceneGraph *> getSceneGraphs() const;
 
     // CreateRoot
     bool createRoot(uint64_t SceneGraphId);

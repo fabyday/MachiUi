@@ -98,6 +98,7 @@ struct MouseEvent
     float y;
     MouseButton button;
     bool isPressed;
+    int buttons = 0;
 };
 
 struct MouseWheelEvent

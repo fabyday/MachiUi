@@ -13,6 +13,7 @@
 #include "../Core/LogManager.h"
 #include "../Core/ILogger.h"
 #include "../Core/Message.h"
+#include "../Elements/NativeView.h"
 #include <algorithm>
 #include <cctype>
 #include <climits>
@@ -623,14 +624,17 @@ static float element_absolute_top(Element *element)
     return result;
 }
 
-static int element_depth(Element *element)
+static bool element_ignores_pointer_events(Element *element)
 {
-    int depth = 0;
-    for (Element *current = element; current != nullptr; current = current->getParent())
+    if (auto pointerEvents = get_element_string_attribute(element, "pointerEvents"))
     {
-        ++depth;
+        std::string value = pointerEvents.value();
+        std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch)
+                       { return static_cast<char>(std::tolower(ch)); });
+        return value == "none";
     }
-    return depth;
+
+    return false;
 }
 
 static bool is_element_hit(Element *element, float x, float y)
@@ -647,7 +651,32 @@ static bool is_element_hit(Element *element, float x, float y)
     return width > 0.0f && height > 0.0f && x >= left && x <= left + width && y >= top && y <= top + height;
 }
 
-static uint64_t hit_test_event_target(JsEventRuntime *runtime, const std::vector<std::string> &eventNames, float x, float y)
+static Element *hit_test_element(Element *element, float x, float y)
+{
+    if (element == nullptr || !element->getVisible() || element->getSceneGraph() == nullptr)
+    {
+        return nullptr;
+    }
+
+    const auto &children = element->getChildren();
+    for (auto it = children.rbegin(); it != children.rend(); ++it)
+    {
+        Element *hitChild = hit_test_element(*it, x, y);
+        if (hitChild != nullptr)
+        {
+            return hitChild;
+        }
+    }
+
+    if (element_ignores_pointer_events(element) || !is_element_hit(element, x, y))
+    {
+        return nullptr;
+    }
+
+    return element;
+}
+
+static uint64_t hit_test_event_target(JsEventRuntime *runtime, float x, float y)
 {
     if (runtime == nullptr || runtime->scriptManager == nullptr || runtime->scriptManager->getSceneManager() == nullptr)
     {
@@ -655,40 +684,33 @@ static uint64_t hit_test_event_target(JsEventRuntime *runtime, const std::vector
     }
 
     SceneManager *sceneManager = runtime->scriptManager->getSceneManager();
-    uint64_t bestElementId = 0;
-    int bestDepth = -1;
-
-    for (const auto &elementHandlers : runtime->handlers)
+    const std::vector<SceneGraph *> graphs = sceneManager->getSceneGraphs();
+    for (auto it = graphs.rbegin(); it != graphs.rend(); ++it)
     {
-        bool handlesAny = false;
-        for (const auto &eventName : eventNames)
-        {
-            if (elementHandlers.second.find(eventName) != elementHandlers.second.end())
-            {
-                handlesAny = true;
-                break;
-            }
-        }
-        if (!handlesAny)
+        SceneGraph *graph = *it;
+        if (graph == nullptr)
         {
             continue;
         }
 
-        Element *element = sceneManager->getElement(elementHandlers.first);
-        if (!is_element_hit(element, x, y))
+        Element *target = hit_test_element(graph->getRoot(), x, y);
+        if (target != nullptr)
         {
-            continue;
-        }
-
-        const int depth = element_depth(element);
-        if (depth > bestDepth || (depth == bestDepth && elementHandlers.first > bestElementId))
-        {
-            bestDepth = depth;
-            bestElementId = elementHandlers.first;
+            return target->getUid();
         }
     }
 
-    return bestElementId;
+    return 0;
+}
+
+static bool is_native_view_target(JsEventRuntime *runtime, uint64_t targetId)
+{
+    if (runtime == nullptr || runtime->scriptManager == nullptr || runtime->scriptManager->getSceneManager() == nullptr || targetId == 0)
+    {
+        return false;
+    }
+
+    return dynamic_cast<NativeViewElement *>(runtime->scriptManager->getSceneManager()->getElement(targetId)) != nullptr;
 }
 
 static JSValue create_base_event(JSContext *ctx, const char *type, uint64_t targetId)
@@ -699,6 +721,21 @@ static JSValue create_base_event(JSContext *ctx, const char *type, uint64_t targ
     JS_SetPropertyStr(ctx, event, "currentTarget", JS_NewBigUint64(ctx, targetId));
     JS_SetPropertyStr(ctx, event, "bubbles", JS_NewBool(ctx, true));
     return event;
+}
+
+static int mouse_button_bit(MouseButton button)
+{
+    switch (button)
+    {
+    case MouseButton::Left:
+        return 1;
+    case MouseButton::Right:
+        return 2;
+    case MouseButton::Middle:
+        return 4;
+    default:
+        return 0;
+    }
 }
 
 static JSValue create_pointer_event(JSContext *ctx, const char *type, uint64_t targetId, const MouseEvent &event, float deltaX, float deltaY)
@@ -716,7 +753,7 @@ static JSValue create_pointer_event(JSContext *ctx, const char *type, uint64_t t
     JS_SetPropertyStr(ctx, jsEvent, "deltaX", JS_NewFloat64(ctx, deltaX));
     JS_SetPropertyStr(ctx, jsEvent, "deltaY", JS_NewFloat64(ctx, deltaY));
     JS_SetPropertyStr(ctx, jsEvent, "button", JS_NewInt32(ctx, button));
-    JS_SetPropertyStr(ctx, jsEvent, "buttons", JS_NewInt32(ctx, event.isPressed ? (1 << button) : 0));
+    JS_SetPropertyStr(ctx, jsEvent, "buttons", JS_NewInt32(ctx, event.buttons != 0 ? event.buttons : (event.isPressed ? mouse_button_bit(event.button) : 0)));
     JS_SetPropertyStr(ctx, jsEvent, "pointerId", JS_NewInt32(ctx, 1));
     JS_SetPropertyStr(ctx, jsEvent, "pointerType", JS_NewString(ctx, "mouse"));
     JS_SetPropertyStr(ctx, jsEvent, "isPrimary", JS_NewBool(ctx, true));
@@ -780,6 +817,19 @@ static void call_event_handler(JsEventRuntime *runtime, JSValueConst callback, J
     JS_FreeValue(runtime->context, result);
 }
 
+static bool js_event_stopped(JsEventRuntime *runtime, JSValue event)
+{
+    if (runtime == nullptr || runtime->context == nullptr)
+    {
+        return false;
+    }
+
+    JSValue stopped = JS_GetPropertyStr(runtime->context, event, "__stopped");
+    const bool result = JS_ToBool(runtime->context, stopped) != 0;
+    JS_FreeValue(runtime->context, stopped);
+    return result;
+}
+
 static bool dispatch_event_to_path(JsEventRuntime *runtime, uint64_t targetId, const std::string &eventName, JSValue event)
 {
     if (runtime == nullptr || runtime->scriptManager == nullptr || runtime->scriptManager->getSceneManager() == nullptr || targetId == 0)
@@ -811,6 +861,10 @@ static bool dispatch_event_to_path(JsEventRuntime *runtime, uint64_t targetId, c
         JS_SetPropertyStr(runtime->context, event, "currentTarget", JS_NewBigUint64(runtime->context, callback.first));
         call_event_handler(runtime, callback.second, event);
         JS_FreeValue(runtime->context, callback.second);
+        if (js_event_stopped(runtime, event))
+        {
+            break;
+        }
     }
 
     process_js_pending_jobs(runtime);
@@ -842,6 +896,10 @@ static void dispatch_event_to_all(JsEventRuntime *runtime, const std::string &ev
         JS_SetPropertyStr(runtime->context, event, "currentTarget", JS_NewBigUint64(runtime->context, callback.first));
         call_event_handler(runtime, callback.second, event);
         JS_FreeValue(runtime->context, callback.second);
+        if (js_event_stopped(runtime, event))
+        {
+            break;
+        }
     }
 
     process_js_pending_jobs(runtime);
@@ -907,13 +965,9 @@ static void dispatch_mouse_input(JsEventRuntime *runtime, const MouseEvent &even
 
     if (event.type == MouseEvent::Type::Down)
     {
-        const uint64_t targetId = hit_test_event_target(
-            runtime,
-            {"onPointerDown", "onMouseDown", "onClick", "onDragStart", "onDrag", "onDragEnd"},
-            event.x,
-            event.y);
+        const uint64_t targetId = hit_test_event_target(runtime, event.x, event.y);
         runtime->focusedElementId = targetId;
-        runtime->pointerCaptureElementId = targetId;
+        runtime->pointerCaptureElementId = 0;
         runtime->pointerDownElementId = targetId;
         runtime->pointerDownX = event.x;
         runtime->pointerDownY = event.y;
@@ -929,6 +983,15 @@ static void dispatch_mouse_input(JsEventRuntime *runtime, const MouseEvent &even
         JSValue globalMouseEvent = create_pointer_event(runtime->context, "mousedown", targetId, event, 0.0f, 0.0f);
         dispatch_global_event(runtime, "mousedown", globalMouseEvent);
         JS_FreeValue(runtime->context, globalMouseEvent);
+
+        if (targetId != 0 && is_native_view_target(runtime, targetId) && runtime->scriptManager != nullptr && runtime->scriptManager->getNativeViewRegistry() != nullptr)
+        {
+            runtime->nativePointerCaptured = runtime->scriptManager->getNativeViewRegistry()->dispatchMouseEvent(event);
+            if (runtime->nativePointerCaptured)
+            {
+                return;
+            }
+        }
 
         JSValue jsEvent = create_pointer_event(runtime->context, "pointerDown", targetId, event, 0.0f, 0.0f);
         dispatch_event_to_path(runtime, targetId, "onPointerDown", jsEvent);
@@ -946,9 +1009,9 @@ static void dispatch_mouse_input(JsEventRuntime *runtime, const MouseEvent &even
         const bool routeToNative = runtime->nativePointerCaptured && runtime->scriptManager != nullptr && runtime->scriptManager->getNativeViewRegistry() != nullptr;
         const uint64_t targetId = routeToNative
                                       ? 0
-                                      : (runtime->pointerDown && runtime->pointerCaptureElementId != 0
+                                      : (runtime->pointerCaptureElementId != 0
                                              ? runtime->pointerCaptureElementId
-                                             : hit_test_event_target(runtime, {"onPointerMove", "onMouseMove"}, event.x, event.y));
+                                             : hit_test_event_target(runtime, event.x, event.y));
         const float deltaX = event.x - runtime->lastPointerX;
         const float deltaY = event.y - runtime->lastPointerY;
 
@@ -973,19 +1036,20 @@ static void dispatch_mouse_input(JsEventRuntime *runtime, const MouseEvent &even
         dispatch_event_to_path(runtime, targetId, "onPointerMove", jsEvent);
         dispatch_event_to_path(runtime, targetId, "onMouseMove", jsEvent);
 
-        if (runtime->pointerDown && runtime->pointerCaptureElementId != 0)
+        const uint64_t dragTargetId = runtime->pointerCaptureElementId != 0 ? runtime->pointerCaptureElementId : runtime->pointerDownElementId;
+        if (runtime->pointerDown && dragTargetId != 0)
         {
             const float totalDeltaX = event.x - runtime->pointerDownX;
             const float totalDeltaY = event.y - runtime->pointerDownY;
             const float dragDistanceSquared = totalDeltaX * totalDeltaX + totalDeltaY * totalDeltaY;
-            if (!runtime->dragging && dragDistanceSquared > 9.0f)
+            if (!runtime->dragging && dragDistanceSquared > 25.0f)
             {
                 runtime->dragging = true;
-                dispatch_event_to_path(runtime, runtime->pointerCaptureElementId, "onDragStart", jsEvent);
+                dispatch_event_to_path(runtime, dragTargetId, "onDragStart", jsEvent);
             }
             if (runtime->dragging)
             {
-                dispatch_event_to_path(runtime, runtime->pointerCaptureElementId, "onDrag", jsEvent);
+                dispatch_event_to_path(runtime, dragTargetId, "onDrag", jsEvent);
             }
         }
 
@@ -1004,7 +1068,7 @@ static void dispatch_mouse_input(JsEventRuntime *runtime, const MouseEvent &even
                                   ? 0
                                   : (runtime->pointerCaptureElementId != 0
                                          ? runtime->pointerCaptureElementId
-                                         : hit_test_event_target(runtime, {"onPointerUp", "onMouseUp", "onClick", "onDragEnd"}, event.x, event.y));
+                                         : hit_test_event_target(runtime, event.x, event.y));
     const float deltaX = event.x - runtime->lastPointerX;
     const float deltaY = event.y - runtime->lastPointerY;
 
@@ -1035,14 +1099,18 @@ static void dispatch_mouse_input(JsEventRuntime *runtime, const MouseEvent &even
     dispatch_event_to_path(runtime, targetId, "onMouseUp", jsEvent);
     if (runtime->dragging)
     {
-        dispatch_event_to_path(runtime, targetId, "onDragEnd", jsEvent);
+        const uint64_t dragTargetId = runtime->pointerCaptureElementId != 0 ? runtime->pointerCaptureElementId : runtime->pointerDownElementId;
+        dispatch_event_to_path(runtime, dragTargetId, "onDragEnd", jsEvent);
     }
     else if (runtime->pointerDownElementId != 0 && runtime->pointerDownElementId == targetId)
     {
-        JSValue globalClickEvent = create_pointer_event(runtime->context, "click", targetId, event, deltaX, deltaY);
-        dispatch_global_event(runtime, "click", globalClickEvent);
-        JS_FreeValue(runtime->context, globalClickEvent);
-        dispatch_event_to_path(runtime, targetId, "onClick", jsEvent);
+        JSValue clickEvent = create_pointer_event(runtime->context, "click", targetId, event, deltaX, deltaY);
+        dispatch_event_to_path(runtime, targetId, "onClick", clickEvent);
+        if (!js_event_stopped(runtime, clickEvent))
+        {
+            dispatch_global_event(runtime, "click", clickEvent);
+        }
+        JS_FreeValue(runtime->context, clickEvent);
     }
 
     runtime->pointerDown = false;

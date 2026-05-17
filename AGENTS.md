@@ -15,12 +15,25 @@ MachiUI is a C++17 UI engine with CMake as the primary build system. Core engine
 
 ## Coding Style & Naming Conventions
 
-Use C++17 and follow the existing brace style: class and function braces on their own lines in C++ files, with 4-space indentation. Public C++ types use PascalCase (`SceneGraph`, `ElementFactory`), while methods and variables generally use lower camel case (`setText`, `sceneGraph`). Test files should end in `Test.cpp`. TypeScript uses ESM imports, 2-space indentation, and camelCase constants/functions. No formatter config is currently checked in, so match nearby code and keep generated `dist/`, `build/`, and `node_modules/` files out of commits.
+Use C++17 and follow the existing brace style: class and function braces on their own lines in C++ files, with 4-space indentation. Public C++ types use PascalCase (`SceneGraph`, `ElementFactory`), while methods and variables generally use lower camel case (`setText`, `sceneGraph`). Test files should end in `Test.cpp`. TypeScript uses ESM imports, 4-space indentation, and camelCase constants/functions. No formatter config is currently checked in, so match nearby code and keep generated `dist/`, `build/`, and `node_modules/` files out of commits.
+
+### Class
+
+class name: PascalCase  
+method name: lowerCamelCase  
+member variable: m_lowerCamelCase  
+static member variable: s_lowerCamelCase  
+
+### Function / Global
+
+function name: snake_case  
+local variable: lowerCamelCase  
+global variable: g_lowerCamelCase  
+macro: UPPER_SNAKE_CASE
+
 
 ## Testing Guidelines
 
 Tests use GoogleTest via `FetchContent` in `Test/CMakeLists.txt` and the helper in `cmakes/test.cmake`. Add tests near the feature module, then register each executable in `Test/UnitTest/CMakeLists.txt` with `addTest(TargetName path/to/Test.cpp MACHIUI_TEST_LIB)`. Prefer focused assertions around public behavior and add regression tests for scripting, layout, renderer, and platform changes.
 
-## Commit & Pull Request Guidelines
 
-Recent commits use short imperative summaries such as `add backend connect` or `add View`; keep the first line concise and action-oriented. Pull requests should describe the change, list build/test commands run, link issues when applicable, and include screenshots or logs for renderer/UI-visible changes.

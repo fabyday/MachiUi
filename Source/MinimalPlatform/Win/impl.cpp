@@ -150,14 +150,59 @@ static KeyEvent makeKeyEvent(WPARAM wParam, bool isPressed)
         isKeyDown(VK_LWIN) || isKeyDown(VK_RWIN)};
 }
 
-static MouseEvent makeMouseEvent(LPARAM lParam, MouseButton button, bool isPressed, MouseEvent::Type type)
+static int mouseButtonBit(MouseButton button)
 {
+    switch (button)
+    {
+    case MouseButton::Left:
+        return 1;
+    case MouseButton::Right:
+        return 2;
+    case MouseButton::Middle:
+        return 4;
+    default:
+        return 0;
+    }
+}
+
+static int mouseButtonsFromWParam(WPARAM wParam, MouseButton button, MouseEvent::Type type)
+{
+    int buttons = 0;
+    if ((wParam & MK_LBUTTON) != 0)
+    {
+        buttons |= mouseButtonBit(MouseButton::Left);
+    }
+    if ((wParam & MK_RBUTTON) != 0)
+    {
+        buttons |= mouseButtonBit(MouseButton::Right);
+    }
+    if ((wParam & MK_MBUTTON) != 0)
+    {
+        buttons |= mouseButtonBit(MouseButton::Middle);
+    }
+
+    if (type == MouseEvent::Type::Down)
+    {
+        buttons |= mouseButtonBit(button);
+    }
+    else if (type == MouseEvent::Type::Up)
+    {
+        buttons &= ~mouseButtonBit(button);
+    }
+
+    return buttons;
+}
+
+static MouseEvent makeMouseEvent(LPARAM lParam, WPARAM wParam, MouseButton button, MouseEvent::Type type)
+{
+    const int buttons = mouseButtonsFromWParam(wParam, button, type);
     return MouseEvent{
         type,
         static_cast<float>(static_cast<short>(LOWORD(lParam))),
         static_cast<float>(static_cast<short>(HIWORD(lParam))),
         button,
-        isPressed};
+        buttons != 0,
+        buttons};
 }
 
 static void handleWindowEvent(IWindow *targetWindow, HWND, UINT message, WPARAM, LPARAM lParam)
@@ -207,34 +252,34 @@ static void handleInputEvent(IWindow *targetWindow, HWND hwnd, UINT message, WPA
         targetWindow->inputManager->emitKeyEvent(makeKeyEvent(wParam, false));
         break;
     case WM_MOUSEMOVE:
-        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Left, false, MouseEvent::Type::Move));
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, wParam, MouseButton::Left, MouseEvent::Type::Move));
         break;
     case WM_LBUTTONDOWN:
         SetCapture(hwnd);
         SetFocus(hwnd);
-        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Left, true, MouseEvent::Type::Down));
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, wParam, MouseButton::Left, MouseEvent::Type::Down));
         break;
     case WM_LBUTTONUP:
         ReleaseCapture();
-        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Left, false, MouseEvent::Type::Up));
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, wParam, MouseButton::Left, MouseEvent::Type::Up));
         break;
     case WM_MBUTTONDOWN:
         SetCapture(hwnd);
         SetFocus(hwnd);
-        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Middle, true, MouseEvent::Type::Down));
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, wParam, MouseButton::Middle, MouseEvent::Type::Down));
         break;
     case WM_MBUTTONUP:
         ReleaseCapture();
-        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Middle, false, MouseEvent::Type::Up));
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, wParam, MouseButton::Middle, MouseEvent::Type::Up));
         break;
     case WM_RBUTTONDOWN:
         SetCapture(hwnd);
         SetFocus(hwnd);
-        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Right, true, MouseEvent::Type::Down));
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, wParam, MouseButton::Right, MouseEvent::Type::Down));
         break;
     case WM_RBUTTONUP:
         ReleaseCapture();
-        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, MouseButton::Right, false, MouseEvent::Type::Up));
+        targetWindow->inputManager->emitMouseEvent(makeMouseEvent(lParam, wParam, MouseButton::Right, MouseEvent::Type::Up));
         break;
     case WM_MOUSEWHEEL:
         targetWindow->inputManager->emitMouseWheelEvent(MouseWheelEvent{
