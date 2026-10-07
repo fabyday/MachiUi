@@ -7,10 +7,10 @@ class ServiceProvider;
 class LogManager : public IService
 {
 
-    ILogger *defaultLogger;
+    ILogger *defaultLogger = nullptr;
 
 public:
-    virtual ~LogManager() = default;
+    virtual ~LogManager() { delete defaultLogger; }
 
     // 엔진이 초기화될 때 호출 (여기서 다른 컴포넌트를 찾거나 초기 설정을 합니다)
     virtual void onInit(ServiceProvider *provider) override;

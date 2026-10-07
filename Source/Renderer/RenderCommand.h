@@ -35,6 +35,8 @@ struct RenderCommand
     CommandType type;
     ViewId target;
     std::variant<Color, TextureId, TextData> data;
+    Rect bounds{};
+    bool hasBounds = false;
 };
 
 // Vertex Packet Structure

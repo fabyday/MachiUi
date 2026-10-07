@@ -17,6 +17,6 @@ class NullLogger : public ILogger
 public:
     NullLogger() = default;
     virtual ~NullLogger() = default;
-    virtual void logImpl(Level lv, const std::string &msg);
+    virtual void logImpl(Level lv, const std::string &msg) override;
     virtual void setLevel(Level lv) override;
 };

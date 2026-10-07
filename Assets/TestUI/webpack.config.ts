@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const config: webpack.Configuration = {
   mode: "development",
-  // 엔트리 포인트를 외부 Source/javascript 폴더로 지정
+  // 엔트리 포인트를 외부 Source/Javascript 폴더로 지정
   entry: path.resolve(__dirname, "./src/main.tsx"),
 
   output: {
@@ -30,7 +30,7 @@ const config: webpack.Configuration = {
       "react/jsx-runtime": path.resolve(__dirname, "../../Source/Javascript/node_modules/react/jsx-runtime.js"),
       "react-dom": path.resolve(__dirname, "../../Source/Javascript/Reconciler/ReactDomCompat.ts"),
       "react-dom/client": path.resolve(__dirname, "../../Source/Javascript/Reconciler/ReactDomCompat.ts"),
-      "@machi/core": path.resolve(__dirname, "../../Source/javascript"),
+      "@machi/core": path.resolve(__dirname, "../../Source/Javascript"),
     },
   },
 
@@ -41,7 +41,7 @@ const config: webpack.Configuration = {
         use: "ts-loader",
         include: [
           path.resolve(__dirname, "."),
-          path.resolve(__dirname, "../../Source/javascript"),
+          path.resolve(__dirname, "../../Source/Javascript"),
         ],
         exclude: /node_modules/,
       },

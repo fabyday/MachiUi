@@ -19,7 +19,13 @@ OSXWindowHost::~OSXWindowHost()
 
 IWindow *OSXWindowHost::requestWindow()
 {
-    return createWindow();
+    auto window = createWindow();
+    windowLists.push_back(window);
+    return window;
 }
 
 REGISTER_UI_COMPONENT_AS(OSXWindowHost, IWindowHost, ServicePhase::System);
+void OSXWindowHost::update()
+{
+    for (auto window : windowLists) if (!window->shouldClose()) window->update();
+}

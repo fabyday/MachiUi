@@ -8,7 +8,7 @@
 #include <Core/LogManager.h>
 #include <Core/ILogger.h>
 
-int main()
+int main(int argc, char **argv)
 {
     UiEngine engine;
     engine.Init();
@@ -34,7 +34,8 @@ int main()
     //     // script->ExecuteModule("assets/main.js");
     //     script->Execute(test);
     // }
-    engine.Run();
+    uint32_t maxFrames = argc == 3 && std::string(argv[1]) == "--frames" ? std::stoul(argv[2]) : 0;
+    engine.Run(maxFrames);
     engine.finalize();
     // WindowManager wm;
     // wm.createWindow("Test Window", 800, 600);

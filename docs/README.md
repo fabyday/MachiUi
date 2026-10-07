@@ -1,18 +1,19 @@
 # MachiUI Documentation Site
 
-This directory contains the Astro Starlight documentation site for MachiUI.
+This directory contains the English Astro Starlight documentation site for MachiUI.
+The root locale is explicitly configured as `en` in `astro.config.mjs`.
 
 ## Local Development
 
-```powershell
+```sh
 cd docs
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev
 ```
 
 ## Production Build
 
-```powershell
+```sh
 cd docs
 pnpm build
 pnpm preview
@@ -38,3 +39,13 @@ $env:SITE = "https://fabyday.github.io"
 $env:BASE = "/MachiUi"
 pnpm build
 ```
+
+On macOS or Linux, set the same production values with:
+
+```sh
+SITE=https://fabyday.github.io BASE=/MachiUi pnpm build
+```
+
+The installation guide covers Windows and macOS. The Metal backend page documents
+its current support and limitations. Updating these sources does not deploy the
+site until the GitHub Pages workflow runs.

@@ -1,76 +1,88 @@
 ---
 title: Installation
-description: Build the MachiUI JavaScript assets and native C++ engine.
+description: Build the MachiUI JavaScript assets and native C++ engine on Windows or macOS.
 sidebar:
   order: 1
 ---
 
-MachiUI has two build surfaces:
-
-- The JavaScript asset bundle in `Assets/TestUI`.
-- The native C++ engine and example executable built with CMake.
+Run these commands from the repository root. The native example loads the webpack
+bundle in `Assets/TestUI/dist/TestUI.js` using QuickJS.
 
 ## Prerequisites
 
-- Windows 10 or later with DirectX 12 support.
-- Visual Studio 2022 or newer with MSVC.
-- CMake 3.10 or newer.
-- Git with submodule support.
-- Node.js and pnpm.
+- **macOS:** A Metal-capable GPU and Xcode command-line tools. A graphical session is required to run native window tests.
+- **Windows:** Windows 10/11 with DirectX 12 and Visual Studio 2022 or newer with MSVC.
+- CMake 3.10 or newer and Git with submodule support.
+- Node.js and pnpm. The documentation workflow uses Node.js 24.
 
-## Build the Asset Bundle
+## Build JavaScript Assets
 
-`Assets/TestUI` is a separate webpack project used by the native example application.
-
-```powershell
-cd Assets/TestUI
-pnpm install
-pnpm build
-```
-
-Use the development watcher while editing the UI bundle:
-
-```powershell
-cd Assets/TestUI
-pnpm dev
-```
-
-## Build the React Reconciler Bundle
-
-The runtime reconciler bundle is copied into the native executable asset directory during the CMake build.
-
-```powershell
-cd Source/Javascript
-pnpm install
-pnpm build
-cd ../..
-```
-
-## Build MachiUI
-
-Initialize vendored dependencies before configuring CMake:
-
-```powershell
+```sh
 git submodule update --init --recursive
+pnpm --dir Source/Javascript install --frozen-lockfile
+pnpm --dir Source/Javascript build
+pnpm --dir Assets/TestUI install --frozen-lockfile
+pnpm --dir Assets/TestUI build
 ```
 
-Then configure and build the native project:
+The TestUI bundle imports the reconciler source directly. The separate
+`Source/Javascript/dist` bundle is useful for other integrations.
+CMake links the repository's `Assets` directory into the executable directory as
+`assets`; run the native example from that directory.
+
+Watch the asset project during development:
+
+```sh
+pnpm --dir Assets/TestUI dev
+```
+
+Restart the native example after rebuilding the bundle. Hot reload is not available.
+
+## Build and Run on macOS
+
+```sh
+cmake -S . -B build-metal -DBUILD_TEST=OFF
+cmake --build build-metal --target test2 MetalBackendSmoke -j 4
+cd build-metal
+./test2
+```
+
+Close the window to exit. A bounded run is useful for smoke checks:
+
+```sh
+MTL_DEBUG_LAYER=1 ./test2 --frames 120
+MTL_DEBUG_LAYER=1 ./MetalBackendSmoke
+```
+
+`BUILD_TEST=OFF` skips GoogleTest and its download step. It does not disable the
+example or Metal smoke target. See the [Metal backend guide](../../engine/metal-backend/)
+for supported features and current limitations.
+
+## Build and Run on Windows
+
+Use a Visual Studio Developer PowerShell:
 
 ```powershell
 cmake -S . -B build -DBUILD_TEST=ON
 cmake --build build --config Debug
+cd build/Debug
+./test2.exe
 ```
 
-The build produces the `MachiUi` static library, the `test2` example executable, and unit test binaries.
+## Run Unit Tests
 
-## Run Tests
+From the repository root:
 
-```powershell
-ctest --test-dir build --output-on-failure -C Debug
+```sh
+cmake -S . -B build-tests -DBUILD_TEST=ON
+cmake --build build-tests --config Debug
+ctest --test-dir build-tests --output-on-failure -C Debug
 ```
 
-## Run the Example
+When enabled, unit tests use GoogleTest through CMake FetchContent. If fetching
+fails and you have a local GoogleTest checkout, configure with:
 
-```powershell
-.\build\Debug\test2.exe
+```sh
+cmake -S . -B build-tests -DBUILD_TEST=ON \
+  -DFETCHCONTENT_SOURCE_DIR_GOOGLETEST=/absolute/path/to/googletest
 ```

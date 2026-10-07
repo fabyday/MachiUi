@@ -1,36 +1,50 @@
 #include "OSXWindow.h"
+#define Rect MacOSRect
 #import <Cocoa/Cocoa.h>
+#undef Rect
 // MacWindow.mm 내부 상단에 정의
 class OSXWindow : public IWindow {
 public:
   OSXWindow(); // <--- 선언 추가
   virtual ~OSXWindow()
       override; // <--- 선언 추가 (IWindow가 가상이므로 가상 소멸자 권장)
-  bool Init(const std::string &title, uint32_t width, uint32_t height) override;
-  void Update() override;
-  void Close() override;
-  void Show() override;
-  void Hide() override;
-  bool ShouldClose() const override;
+  bool init(const std::string &title, uint32_t width, uint32_t height) override;
+  void update() override;
+  void close() override;
+  void show() override;
+  void hide() override;
+  bool shouldClose() const override;
 
   void setBorderless(bool use) override;
   void setTitle(const std::string &title) override;
   void setHandle(void *handle);
+  void *getNativeHandle() const override { return handle; }
+  Rect getContentBounds() const override {
+    NSWindow *window = (NSWindow *)handle;
+    NSSize size = window.contentView.bounds.size;
+    return {0, 0, (float)size.width, (float)size.height};
+  }
 
 private:
   void *handle;
   bool closed;
+  id delegate = nil;
+public:
+  void setDelegate(id value) { delegate = value; }
 };
 
-OSXWindow::OSXWindow() : handle(nullptr) {}
-OSXWindow::~OSXWindow() {}
+OSXWindow::OSXWindow() : handle(nullptr), closed(false) {}
+OSXWindow::~OSXWindow() { close(); [delegate release]; }
 
-bool OSXWindow::Init(const std::string &title, uint32_t width,
+bool OSXWindow::init(const std::string &title, uint32_t width,
                      uint32_t height) {
-  return true;
+  NSWindow *window = (NSWindow *)handle;
+  [window setTitle:[NSString stringWithUTF8String:title.c_str()]];
+  [window setContentSize:NSMakeSize(width, height)];
+  return handle != nullptr;
 }
 
-void OSXWindow::Update() {
+void OSXWindow::update() {
   @autoreleasepool {
     NSEvent *event;
 
@@ -48,51 +62,27 @@ void OSXWindow::Update() {
     }
   }
 }
-void OSXWindow::Close() {
-
+void OSXWindow::close() {
     if (closed) return;
-
-    if (handle) {
-        NSWindow *nsWindow = (__bridge NSWindow *)handle;
-        
-        // 1. 윈도우 닫기 명령 (Delegate의 windowWillClose 등을 유발)
-        [nsWindow close]; 
-        
-        // 2. Non-ARC 환경이라면 위에서 retain 했던 것을 release 해줘야 함
-#if !__has_feature(objc_arc)
-        [nsWindow release];
-#endif
+    closed = true;
+    NSWindow *window = (NSWindow *)handle;
+    if (window) {
+        [window setDelegate:nil];
+        [window close];
+        [window release];
         handle = nullptr;
     }
-    
-    closed = true;
 }
-void OSXWindow::Show() {
-  NSWindow *nsWindow = (__bridge NSWindow *)handle;
-
-  // 1. 현재 윈도우의 프레임(위치 + 크기)을 가져옴
-  NSRect frame = [nsWindow frame];
-
-  // 2. 위치(Origin)는 그대로 두고 크기만 변경
-  // macOS 좌표계 특성상 높이가 바뀌면 위쪽으로 늘어나게 하려면
-  // Y축 좌표 보정이 필요할 수 있지만, 기본적으로는 아래와 같이 처리합니다.
-  frame.size.width = (CGFloat)600;
-  frame.size.height = (CGFloat)800;
-
-  // 3. 변경된 프레임 적용 (animate:YES를 주면 부드럽게 커짐)
-  [nsWindow setFrame:frame display:YES animate:NO];
-  if (handle) {
-    NSWindow *nsWindow = (__bridge NSWindow *)handle;
-    [nsWindow makeKeyAndOrderFront:nil];
-    [nsWindow setIsVisible:YES];           // 2. 가시성 명시
-    [NSApp activateIgnoringOtherApps:YES]; // 창을 맨 앞으로 가져오기
-  }
+void OSXWindow::show() {
+    NSWindow *window = (NSWindow *)handle;
+    [window makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
 }
-void OSXWindow::Hide() {
+void OSXWindow::hide() {
 
 
 }
-bool OSXWindow::ShouldClose() const { return this->closed; }
+bool OSXWindow::shouldClose() const { return this->closed; }
 
 
 void OSXWindow::setBorderless(bool use) {
@@ -148,10 +138,10 @@ void OSXWindow::setHandle(void *handle) { this->handle = handle; }
 
 // Win32의 WM_CLOSE / WM_DESTROY 대응
 - (BOOL)windowShouldClose:(NSWindow *)sender {
-    OSXMachiWin->Close(); // 사용자가 닫기를 누르면 Close() 호출
+    OSXMachiWin->close(); // 사용자가 닫기를 누르면 close() 호출
   // 여기서 C++ 클래스의 멤버 변수를 변경하거나 함수를 호출합니다.
   // cppWindow->NotifyClose();
-  return YES;
+  return NO;
 }
 
 - (void)windowWillClose:(NSNotification *)notification {
@@ -183,13 +173,15 @@ IWindow *createWindow() {
     // 4. Delegate 연결 (WndProc 연결 작업과 동일)
     MachiWindowDelegate *delegate =
         [[MachiWindowDelegate alloc] initWithCppWindow:win];
+    [nsWindow setReleasedWhenClosed:NO];
     [nsWindow setDelegate:delegate];
+    win->setDelegate(delegate);
 
     [nsWindow makeKeyAndOrderFront:nil];
     [NSApp finishLaunching];
 
     // Win32의 hwnd 보관하듯 NSWindow 포인터를 보관
-    [nsWindow retain]; // 명시적으로 reference count 증가
+
     win->setHandle((void *)nsWindow);
   }
 

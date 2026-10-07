@@ -37,6 +37,8 @@ public:
     // virtual uint32_t GetHeight() const = 0;
     virtual NativeHandle getNativeHandle() const = 0; // HWND(Win32) 또는 NSWindow*(Mac)
 
+    virtual Rect getContentBounds() const { return {0, 0, 600, 400}; }
+
     // // --- 그래픽스 백엔드 연결용 ---
     // // 창 크기 조절 시 SwapChain 재생성을 위해 필요
     // virtual void SetResizeCallback(void (*callback)(uint32_t, uint32_t)) = 0;

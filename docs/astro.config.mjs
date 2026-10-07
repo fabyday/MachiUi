@@ -13,6 +13,9 @@ export default defineConfig({
       title: 'MachiUI',
       description: 'Native C++ UI engine with a React-style JavaScript runtime.',
       defaultLocale: 'root',
+      locales: {
+        root: { label: 'English', lang: 'en' },
+      },
       lastUpdated: true,
       social: [
         {

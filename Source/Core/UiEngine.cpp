@@ -132,7 +132,7 @@ RuntimeRoot UiEngine::mountScriptView(const std::string &modulePath)
 }
 
 // StandAlone Mode
-void UiEngine::Run()
+void UiEngine::Run(uint32_t maxFrames)
 {
     // 실제로는 여기에 윈도우 메시지 루프나 종료 조건이 들어갑니다.
 
@@ -155,11 +155,13 @@ void UiEngine::Run()
     }
     TaskScheduler *scheduler = this->m_serviceProvider->getService<TaskScheduler>();
 
+    win->init("MachiUI TestUI", 600, 400);
     win->show();
     win->setTitle("test");
-    win->setBorderless(true);
 
-    while (running && !win->shouldClose())
+
+    uint32_t frames = 0;
+    while (running && !win->shouldClose() && (!maxFrames || frames < maxFrames))
     {
         // upate timer tick
         this->timer->tick();
@@ -173,8 +175,10 @@ void UiEngine::Run()
             scheduler->processReservedTask();
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        ++frames;
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
+    if (!win->shouldClose()) win->close();
 }
 
 void UiEngine::attachCustomRenderer(IRenderer *renderer)

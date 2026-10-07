@@ -3,7 +3,8 @@ project(MachiUI)
 cmake_minimum_required(VERSION 3.10)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(BUILD_TEST ON)
+option(BUILD_TEST "Build GoogleTest unit tests" ON)
+option(BUILD_METAL_SMOKE "Build standalone Metal smoke example" ON)
 option(STANDALONE_MODE "stasndalone embeded" TRUE)
 option(DEFAULT_LOGGER "stasndalone embeded" TRUE)
 
@@ -32,6 +33,9 @@ target_include_directories(boost_di INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/Third
 if(WIN32)
 message("Platform : Windows")
 elseif(APPLE)
+    enable_language(OBJCXX)
+    set(CMAKE_OBJCXX_STANDARD 17)
+    set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
     message("Platform : Apple")
     set(OS_RELATED_LIBS "-framework AppKit" "-framework Metal" "-framework QuartzCore")
 elseif(UNIX)
@@ -55,7 +59,7 @@ endif()
 
 
 
-set(SOURCE_ASSETS "${CMAKE_CURRENT_SOURCE_DIR}/assets")
+set(SOURCE_ASSETS "${CMAKE_CURRENT_SOURCE_DIR}/Assets")
 set(DEST_ASSETS "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets")
 
 if(NOT CMAKE_RUNTIME_OUTPUT_DIRECTORY)
@@ -79,15 +83,22 @@ add_custom_command(TARGET test2 POST_BUILD
 set(JS_DIST_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/Source/Javascript/dist)
 set(JS_DIST_DEST $<TARGET_FILE_DIR:test2>/assets/platform)
 
-add_custom_command(TARGET test2 POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E remove_directory ${JS_DIST_DEST}
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${JS_DIST_SOURCE} ${JS_DIST_DEST}
-)
+
 
 
 if(BUILD_TEST)
-    message("build test...")
     enable_testing()
+    message("build test...")
     add_subdirectory(Test)
 endif()
 
+
+
+if(APPLE AND BUILD_METAL_SMOKE)
+    # Isolate the backend from unfinished engine bootstrap code.
+    add_executable(MetalBackendSmoke ${PROJECT_SOURCE_DIR}/Test/UnitTest/Renderer/Metal/BackendSmoke.mm)
+    target_include_directories(MetalBackendSmoke PRIVATE ${PROJECT_SOURCE_DIR}/Source)
+    target_compile_options(MetalBackendSmoke PRIVATE -fobjc-arc)
+    target_link_libraries(MetalBackendSmoke PRIVATE MachiUi ${OS_RELATED_LIBS})
+    add_test(NAME MetalBackendSmoke COMMAND MetalBackendSmoke)
+endif()

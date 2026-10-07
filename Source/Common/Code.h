@@ -36,8 +36,11 @@ typedef struct
 #endif
 } MachiCode;
 
-#define MAKE_MACHI_ERR(c, m) \
-    MachiCode { c, m, __FILE__, __LINE__ }
+#ifdef _DEBUG
+#define MAKE_MACHI_ERR(c, m) MachiCode{c, m, __FILE__, __LINE__}
+#else
+#define MAKE_MACHI_ERR(c, m) MachiCode{c, m}
+#endif
 
 #define MAKE_MACHI_SUCCESS MachiCode{MACHI_SUCCESS, "Success"}
 

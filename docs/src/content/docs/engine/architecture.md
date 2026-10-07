@@ -21,11 +21,11 @@ MachiUI uses Yoga for Flexbox layout. JavaScript props and class names are resol
 
 ## Renderer
 
-`Source/Renderer` contains render queues and backend interfaces. On Windows, the DirectX 12 backend draws solid UI rectangles and uses DirectWrite/Direct2D interop for text.
+`Source/Renderer` contains render queues and backend interfaces. On Windows, the DirectX 12 backend draws solid UI rectangles and uses DirectWrite/Direct2D interop for text. On macOS, the Metal backend draws solid rectangles and basic bitmap text into a `CAMetalLayer`. See the [Metal backend guide](../metal-backend/) for its supported features and limitations.
 
 ## Platform
 
-`Source/MinimalPlatform` contains operating-system hosts. The Windows host owns native windows and forwards pointer, keyboard, resize, focus, and close events into the engine.
+`Source/MinimalPlatform` contains operating-system hosts. The macOS host creates AppKit windows and processes application events, but does not yet forward input into the engine. The Windows host owns native windows and forwards pointer, keyboard, resize, focus, and close events into the engine.
 
 ## Scripting
 

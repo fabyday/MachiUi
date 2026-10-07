@@ -1,6 +1,7 @@
 #include "ServiceInitializer.h"
 #include "ServiceProvider.h"
 #include "ServiceRegistry.h"
+#include "LogManager.h"
 
 bool ServiceInitializer::createAllServices(ServiceRegistry &registry, ServiceProvider &provider)
 {
@@ -28,6 +29,8 @@ bool ServiceInitializer::createAllServices(ServiceRegistry &registry, ServicePro
 
 bool ServiceInitializer::initializeAllServices(ServiceRegistry &registry, ServiceProvider &provider)
 {
+
+    if (auto logger = provider.getService<LogManager>()) logger->initialize(&provider);
 
     for (auto &[type, service] : provider.services)
     {

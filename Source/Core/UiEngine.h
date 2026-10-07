@@ -52,7 +52,7 @@ public:
     void Init();
 
     // 메인 루프: 모든 부품의 Update 호출
-    void Run();
+    void Run(uint32_t maxFrames = 0);
     void finalize();
     RuntimeRoot mountScriptView(const std::string &modulePath);
 

@@ -1,6 +1,6 @@
-# 🚀 Machi-UI
+# MachiUI
 
-**네이티브 그래픽 API 기반 엔진에서 React의 선언적 모델로 UI를 구성할 수 있도록 한 라이브러리입니다.**
+**Build declarative React interfaces on a native C++ graphics engine.**
 
 <p align="left">
   <a href="https://fabyday.github.io/MachiUi/">
@@ -8,108 +8,125 @@
   </a>
 </p>
 
+## Key Features
 
+- **Native rendering:** DirectX 12 on Windows and Metal on macOS, without an embedded browser.
+- **Declarative UI:** A React reconciler maps components and props to native scene elements through QuickJS.
+- **Flexbox layout:** Yoga computes element positions and sizes.
+- **Service architecture:** `IService`, `ServiceRegistry`, and `ServiceProvider` manage engine services.
 
+## Architecture
 
+1. **React reconciler:** Creates and updates the native UI tree through `MachiNative` bindings.
+2. **Scene graph and layout:** C++ elements store attributes and Yoga computes their geometry.
+3. **Platform and renderer:** Native window hosts provide windows; DirectX 12 or Metal draws the attached scenes.
 
-## 🌟 Key Features
+The macOS path is connected from `UiEngine::mountScriptView()` through ViewManager,
+React mounting, Yoga layout, and Metal frame submission. The TestUI dashboard has
+been built and displayed on macOS. Metal currently supports solid rectangles,
+alpha blending, Retina scaling, and basic single-line text. Images, clipping,
+font styling, text wrapping, and macOS input forwarding remain unfinished.
+See the [Metal backend guide](docs/src/content/docs/engine/metal-backend.md).
 
-* **Native Performance**: Electron이나 브라우저 엔진 없이 그래픽스(DX12, OpenGL, etc) 파이프라인에서 직접 렌더링하여 최소한의 오버헤드를 보장합니다.
-* **Declarative UI**: React의 Component, Hooks, State 관리 시스템을 그대로 사용하여 복잡한 UI를 쉽게 구축합니다.
-* **Flexbox Layout**: Yoga Engine 등을 내장하여 웹 개발자에게 익숙한 레이아웃 방식을 지원합니다.
+## Getting Started
 
----
-
-## 🛠 Architecture
-
-이 프로젝트는 React에서 생성된 가상 DOM 노드를 C++의 네이티브 렌더러로 전달하는 브리지 구조를 가집니다.
-
-
-
-1.  **Reconciler**: React의 변경 사항을 감지하여 UI 트리 업데이트를 관리합니다.
-2.  **Layout Engine**: 계산된 스타일 정보를 바탕으로 각 요소의 좌표를 산출합니다.
-3.  **DX12 Backend**: Vertex/Index Buffer와 Shader를 통해 UI를 최종 드로우 콜로 변환합니다.
-
----
-
-## 🚀 Getting Started
+Run the following commands from the repository root.
 
 ### Prerequisites
-* **OS**: Windows 10/11 (DirectX 12 support)
-* **Compiler**: MSVC (Visual Studio 2022+)
-* **Build Tool**: CMake 3.10+, Git
-* **JavaScript Runtime**: Node.js, pnpm
-* **Engine**: QuickJS(Runtime) & Yoga Engine(Layout Engine)
 
-### 1. Assets 설치 및 빌드
+- Windows 10/11 with DirectX 12 and Visual Studio 2022 or newer, or macOS with a Metal-capable GPU and Xcode command-line tools.
+- CMake 3.10 or newer and Git.
+- Node.js and pnpm for JavaScript bundles. The documentation site uses Node.js 24 in CI.
+- Vendored QuickJS, Yoga, and spdlog dependencies.
 
-`Assets/TestUI`는 MachiUi에서 실행할 테스트 UI 번들을 만드는 별도 pnpm 프로젝트입니다.
+### 1. Initialize Dependencies and Build JavaScript
 
-```powershell
-cd Assets/TestUI
-pnpm install
-pnpm build
-```
-
-개발 중 파일 변경을 감시하면서 다시 빌드하려면 다음 명령을 사용합니다.
-
-```powershell
-cd Assets/TestUI
-pnpm dev
-```
-
-기본 `Assets` 패키지를 직접 실행해야 하는 경우에는 다음 명령을 사용할 수 있습니다.
-
-```powershell
-cd Assets
-pnpm install
-pnpm start
-```
-
-### 2. MachiUi 설치 및 빌드
-
-처음 저장소를 받은 뒤에는 서브모듈을 먼저 내려받습니다. `ThirdParty/yoga`, `ThirdParty/quickjs`, `ThirdParty/spdlog`가 필요합니다.
-
-```powershell
+```sh
 git submodule update --init --recursive
+pnpm --dir Source/Javascript install --frozen-lockfile
+pnpm --dir Source/Javascript build
+pnpm --dir Assets/TestUI install --frozen-lockfile
+pnpm --dir Assets/TestUI build
 ```
 
-React reconciler 번들을 생성합니다. 이 결과물은 CMake 빌드 후 실행 파일의 `assets/platform` 경로로 복사됩니다.
+`Assets/TestUI` is a separate webpack project. It bundles the reconciler source
+and example UI into `Assets/TestUI/dist/TestUI.js`. CMake links `Assets` into the
+executable directory as `assets`; run the example from that directory.
 
-```powershell
-cd Source/Javascript
-pnpm install
-pnpm build
-cd ../..
+To rebuild the asset bundle while editing:
+
+```sh
+pnpm --dir Assets/TestUI dev
 ```
 
-이후 Visual Studio Developer PowerShell 또는 MSVC 환경이 잡힌 터미널에서 네이티브 타깃을 빌드합니다.
+Restart the native example after rebuilding; hot reload is not implemented.
+`Assets/main.js` also requires the native `MachiNative` host, so running it with
+plain Node.js does not launch the native UI.
+
+### 2. Build and Run on macOS
+
+```sh
+cmake -S . -B build-metal -DBUILD_TEST=OFF
+cmake --build build-metal --target test2 MetalBackendSmoke -j 4
+cd build-metal
+./test2
+```
+
+Close the window to exit. For a bounded run with Metal API validation:
+
+```sh
+MTL_DEBUG_LAYER=1 ./test2 --frames 120
+MTL_DEBUG_LAYER=1 ./MetalBackendSmoke
+```
+
+`BUILD_TEST=OFF` skips GoogleTest downloads while keeping the native example and
+Metal smoke target available.
+
+### 3. Build and Run on Windows
+
+In a Visual Studio Developer PowerShell:
 
 ```powershell
 cmake -S . -B build -DBUILD_TEST=ON
 cmake --build build --config Debug
+cd build/Debug
+./test2.exe
 ```
 
-빌드가 끝나면 예제 실행 파일 `test2`와 정적 라이브러리 `MachiUi`가 생성됩니다. 테스트를 실행하려면 다음 명령을 사용합니다.
+### 4. Run Unit Tests
 
-```powershell
-ctest --test-dir build --output-on-failure
+GoogleTest is fetched during configuration when `BUILD_TEST=ON`:
+
+```sh
+cmake -S . -B build-tests -DBUILD_TEST=ON
+cmake --build build-tests --config Debug
+ctest --test-dir build-tests --output-on-failure -C Debug
 ```
 
+If you already have a GoogleTest checkout, pass
+`-DFETCHCONTENT_SOURCE_DIR_GOOGLETEST=/absolute/path/to/googletest` to CMake.
 
-## 🔧 Technical Details
+## Integration
 
+Built-in backends register as `IRenderer` services. A custom renderer implements
+initialization, command enqueueing, scene attachment, and frame execution.
+Provide a compatible `IWindowHost` when integrating with a different native
+window system. The custom-service attachment methods in `UiEngine` are still
+incomplete; they should not be treated as a finished embedding API.
 
-엔진의 구성요소의 기본단위는 서비스(IService)를 상속한다.
-제공되는 기본 랜더러가 아닌 커스텀한 DX12/Opengl/Vulkan/Metal 랜더러를 쓰기 위해서는 사용자는 독자적인 IWindowHost를 구현해야한다.
+## Documentation
 
-### Modular Logging
-MachI-UI는 엔진 통합을 위해 **추상화된 로깅 레이어**를 제공합니다.
-- `spdlog` 기반의 자체 로깅 지원 (Standalone)
-- 외부 엔진 로거 주입 가능 (Embedded)
-- QuickJS 내부 런타임 에러와 React 로그의 통합 관리
+The English documentation site is maintained in `docs/`.
 
-# MIT License
+```sh
+pnpm --dir docs install --frozen-lockfile
+pnpm --dir docs dev
+```
+
+See [docs/README.md](docs/README.md) for build settings and
+[Assets/TestUI/README.md](Assets/TestUI/README.md) for the macOS example.
+
+## MIT License
 
 Copyright (c) 2026 fabyday
 

@@ -31,7 +31,7 @@ This keeps UI libraries usable while avoiding accidental network support in envi
 
 ## Input
 
-Pointer, mouse, keyboard, and window events are part of the UI runtime. React-style handlers such as `onClick`, `onPointerDown`, `onPointerMove`, `onKeyDown`, and `onWindowResize` are routed through the native event bridge.
+Pointer, mouse, keyboard, and window events are part of the UI runtime. React-style handlers such as `onClick`, `onPointerDown`, `onPointerMove`, `onKeyDown`, and `onWindowResize` are routed through the native event bridge on Windows. The macOS host currently processes AppKit events without forwarding pointer or keyboard input into this bridge.
 
 ## DOM Compatibility
 
