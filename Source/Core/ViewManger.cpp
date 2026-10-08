@@ -125,3 +125,24 @@ ViewInfo *ViewManager::getViewInfo(ViewId id)
 }
 
 REGISTER_UI_COMPONENT(ViewManager, ServicePhase::Logic)
+
+IWindow *ViewManager::getInitialWindow()
+{
+    IWindow *window = nullptr;
+    ViewId firstId = 0;
+    for (const auto &[id, candidate] : windowMap)
+    {
+        auto info = viewInfoMap.find(id);
+        if (info == viewInfoMap.end() || !info->second.isAlive ||
+            !info->second.isWindow || !candidate || candidate->shouldClose())
+        {
+            continue;
+        }
+        if (!window || id < firstId)
+        {
+            firstId = id;
+            window = candidate;
+        }
+    }
+    return window;
+}

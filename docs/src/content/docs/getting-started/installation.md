@@ -86,3 +86,30 @@ fails and you have a local GoogleTest checkout, configure with:
 cmake -S . -B build-tests -DBUILD_TEST=ON \
   -DFETCHCONTENT_SOURCE_DIR_GOOGLETEST=/absolute/path/to/googletest
 ```
+
+## Manifest and Native Startup
+
+`UiEngine::Init()` checks `manifest.json` in the working directory. Pass a path
+to `Init(path)` to use a different manifest, or `Init("")` to bypass it.
+
+```json
+{
+  "entry": "./dist/main.js"
+}
+```
+
+A nonempty `entry` is resolved relative to the manifest directory and mounted by
+`Run()`. If `entry` is omitted or empty, `Run()` finds the earliest-created live
+ViewManager window. It preserves that window's title and size, and creates a
+default window only when no live window exists. Invalid JSON and non-string
+entry values are rejected.
+
+The `1.Example` target demonstrates native startup with an empty entry:
+
+```sh
+cmake --build build-metal --target MachiUiExample1 -j 4
+./build-metal/examples/1.Example/MachiUiExample1
+```
+
+The `test2` target mounts Assets/TestUI explicitly; the engine no longer loads
+that asset automatically for applications without an entry.

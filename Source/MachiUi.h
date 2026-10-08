@@ -2,7 +2,7 @@
 
 
 // ENGINE CORE HEADER
-#include "Core/Widget.h"
+#include "Core/ViewManger.h"
 #include "Core/UiEngine.h"
 
 
@@ -21,4 +21,4 @@
 #else // STANDALONE MODE
     
     #include "Renderer/RenderQueue.h"
-#endif 
+#endif

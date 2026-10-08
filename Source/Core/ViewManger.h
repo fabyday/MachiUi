@@ -51,6 +51,7 @@ public:
     ViewId createView(ViewId parent = 0);
     IWindow *getWindowByViewId(ViewId id);
     ViewInfo *getViewInfo(ViewId id);
+    IWindow *getInitialWindow();
 
     // View Controll
     void handleMouseUp(ViewId id, int x, int y);

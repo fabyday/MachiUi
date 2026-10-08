@@ -11,7 +11,8 @@
 int main(int argc, char **argv)
 {
     UiEngine engine;
-    engine.Init();
+    engine.Init("");
+    engine.mountScriptView("assets/TestUI/dist/TestUI.js");
     std::cout << "Initializing UI Engine..." << std::endl;
     // auto *script = engine.GetService<ScriptManager>();
 

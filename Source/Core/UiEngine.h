@@ -49,7 +49,8 @@ public:
     }
 
     // 엔진 가동: 부품 조립 및 초기화
-    void Init();
+    // Missing manifests and omitted/empty entry select the existing initial window.
+    void Init(const std::string &manifestPath = "manifest.json");
 
     // 메인 루프: 모든 부품의 Update 호출
     void Run(uint32_t maxFrames = 0);
@@ -83,4 +84,5 @@ private:
     ScriptManager *scriptManager = nullptr;
     ViewManager *viewManager = nullptr;
     RuntimeRoot defaultRoot;
+    std::string entryModule;
 };

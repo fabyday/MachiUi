@@ -34,6 +34,7 @@ public:
     void Init();
 
     // code execution method
+    std::optional<std::string> readManifestEntry(const std::string &path);
     void Execute(const std::string &code);
     void ExecuteFile(const std::string &path);
     void ExecuteModule(const std::string &modulePath);

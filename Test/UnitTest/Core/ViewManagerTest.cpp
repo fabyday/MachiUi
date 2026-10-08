@@ -5,6 +5,8 @@
 #include "Mocks/MockUiEngine.h"
 #include <Core/ViewManger.h>
 #include <memory>
+#include "Core/ServiceProvider.h"
+#include "Core/LogManager.h"
 
 
 // // UiEngine의 가짜 객체 (필요한 경우)
@@ -62,4 +64,25 @@ TEST_F(ViewManagerTest, AttachView_ShouldSetParent) {
 
     // TODO: ViewManager에 getParent(id) 같은 함수가 있다면 결과 확인
     // EXPECT_EQ(viewManager.getParent(child), parent);
+}
+TEST(ViewManagerStartupTest, SelectsEarliestLiveWindowAndSkipsClosedOrDestroyedWindows)
+{
+    ServiceProvider provider;
+    auto logs = std::make_unique<LogManager>();
+    logs->onInit(&provider);
+    provider.registerService(std::move(logs));
+    auto host = std::make_unique<testing::NiceMock<MockWindowHost>>();
+    provider.registerService(std::type_index(typeid(IWindowHost)), std::move(host));
+    ViewManager views;
+    views.onInit(&provider);
+    EXPECT_EQ(views.getInitialWindow(), nullptr);
+    auto first = views.createView();
+    auto second = views.createView();
+    auto firstWindow = static_cast<MockIWindow *>(views.getWindowByViewId(first));
+    auto secondWindow = views.getWindowByViewId(second);
+    EXPECT_EQ(views.getInitialWindow(), firstWindow);
+    ON_CALL(*firstWindow, shouldClose()).WillByDefault(testing::Return(true));
+    EXPECT_EQ(views.getInitialWindow(), secondWindow);
+    views.destroyView(second);
+    EXPECT_EQ(views.getInitialWindow(), nullptr);
 }

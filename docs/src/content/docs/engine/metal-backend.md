@@ -58,7 +58,7 @@ MTL_DEBUG_LAYER=1 ./MetalBackendSmoke
 ```
 
 The integration has been checked by displaying the TestUI dashboard, running
-Metal API validation, and passing the current 13 discovered tests. These checks
+Metal API validation, and passing the unit and smoke tests. These checks
 cover startup and basic rendering; they do not establish feature parity or
 production performance.
 

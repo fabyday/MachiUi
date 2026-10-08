@@ -45,3 +45,5 @@ addTest(ReconcilerMountTest
     MACHIUI_TEST_LIB
 )
 
+
+addTest(ManifestTest Scripting/ManifestTest.cpp MACHIUI_TEST_LIB)

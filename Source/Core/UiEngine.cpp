@@ -48,7 +48,7 @@ void UiEngine::_initializeIOChannel()
 
 UiEngine::UiEngine() : engineInitFlag(false) {}
 
-void UiEngine::Init()
+void UiEngine::Init(const std::string &manifestPath)
 {
     if (engineInitFlag)
     {
@@ -64,6 +64,7 @@ void UiEngine::Init()
 
     // Engine
     this->setupFundamentalServices();
+    if (scriptManager) entryModule = scriptManager->readManifestEntry(manifestPath).value_or("");
     engineInitFlag = true;
 }
 
@@ -120,6 +121,13 @@ RuntimeRoot UiEngine::mountScriptView(const std::string &modulePath)
         return {};
     }
 
+    IWindow *window = viewManager->getWindowByViewId(root.viewId);
+    if (!window || !window->init("MachiUI", 600, 400))
+    {
+        viewManager->destroyView(root.viewId);
+        return {};
+    }
+
     root.sceneGraphId = this->sceneManager->createSceneGraph(modulePath);
     if (root.sceneGraphId == 0 || !this->sceneManager->createRoot(root.sceneGraphId))
     {
@@ -138,16 +146,21 @@ void UiEngine::Run(uint32_t maxFrames)
 
     bool running = true;
 
-    // TODO : remove this code after implementing the actual main loop with proper exit conditions.
-    if (defaultRoot.viewId == 0)
+    if (!engineInitFlag) throw std::logic_error("Initialize UiEngine before Run");
+    if (defaultRoot.viewId == 0 && !entryModule.empty())
     {
-        defaultRoot = mountScriptView("assets/TestUI/dist/TestUI.js");
+        defaultRoot = mountScriptView(entryModule);
+        if (defaultRoot.viewId == 0) throw std::runtime_error("Could not mount manifest entry");
     }
 
-    IWindow *win = this->viewManager ? this->viewManager->getWindowByViewId(defaultRoot.viewId) : nullptr;
-    if (win == nullptr)
+    IWindow *win = viewManager ? viewManager->getWindowByViewId(defaultRoot.viewId) : nullptr;
+    bool createdWindow = false;
+    if (!win && viewManager) win = viewManager->getInitialWindow();
+    if (!win && windowHost)
     {
-        win = this->windowHost->requestWindow();
+        if (viewManager) win = viewManager->getWindowByViewId(viewManager->createView());
+        else win = windowHost->requestWindow();
+        createdWindow = true;
     }
     if (win == nullptr)
     {
@@ -155,9 +168,10 @@ void UiEngine::Run(uint32_t maxFrames)
     }
     TaskScheduler *scheduler = this->m_serviceProvider->getService<TaskScheduler>();
 
-    win->init("MachiUI TestUI", 600, 400);
+    if (createdWindow && !win->init("MachiUI", 600, 400))
+        throw std::runtime_error("Could not initialize the startup window");
     win->show();
-    win->setTitle("test");
+
 
 
     uint32_t frames = 0;

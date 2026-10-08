@@ -5,6 +5,8 @@
 #include "../Core/NativeViewRegistry.h"
 #include "../Core/LogManager.h"
 #include "../Core/ServiceProvider.h"
+#include <filesystem>
+#include <stdexcept>
 struct JSModuleDef;
 class JSRuntime;
 class JSContext;
@@ -19,6 +21,7 @@ struct
     ~Impl();
     void run(const std::string &code, const std::string &name, bool isModule);
     void handleException();
+    std::optional<std::string> parseManifestEntry(const std::string &json, const std::string &name);
 };
 
 ScriptManager::ScriptManager() : m_pImpl(std::make_unique<Impl>(this))
@@ -159,3 +162,14 @@ ScriptExecutionContext *ScriptManager::createOrGetExecutionContext(const std::st
 }
 
 REGISTER_UI_COMPONENT(ScriptManager, ServicePhase::Logic);
+
+std::optional<std::string> ScriptManager::readManifestEntry(const std::string &path)
+{
+    if (path.empty()) return std::nullopt;
+    if (!m_fileLoader) throw std::logic_error("ScriptManager is not initialized");
+    auto json = m_fileLoader->readFile(path);
+    if (!json) return std::nullopt;
+    auto entry = m_pImpl->parseManifestEntry(*json, path);
+    if (!entry) return std::nullopt;
+    return (std::filesystem::path(path).parent_path() / *entry).lexically_normal().string();
+}

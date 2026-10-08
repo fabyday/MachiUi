@@ -4,6 +4,7 @@
 #include "../Core/UiEngine.h"
 #include "../Core/IFileLoader.h"
 #include <iostream>
+#include <stdexcept>
 #include "../Core/Element.h"
 #include "NativeBinder.h"
 #include "ClassRegistry.h"
@@ -77,6 +78,7 @@ struct
     ~Impl();
     void run(const std::string &code, const std::string &name, bool isModule);
     void handleException();
+    std::optional<std::string> parseManifestEntry(const std::string &json, const std::string &name);
 };
 static void register_native_method(JSContext *ctx, ScriptManager *manager);
 static JSModuleDef *js_module_loader(JSContext *ctx, const char *module_name, void *opaque);
@@ -2579,4 +2581,38 @@ void register_native_method(JSContext *ctx, ScriptManager *manager)
     JS_SetPropertyStr(ctx, global, "MachiNative", native);
     JS_FreeValue(ctx, global);
     install_fetch_shim(ctx);
+}
+
+std::optional<std::string> ScriptManager::Impl::parseManifestEntry(const std::string &json, const std::string &name)
+{
+    JSValue manifest = JS_ParseJSON(context, json.c_str(), json.size(), name.c_str());
+    if (JS_IsException(manifest))
+    {
+        JSValue exception = JS_GetException(context);
+        JS_FreeValue(context, exception);
+        throw std::runtime_error("Invalid manifest JSON: " + name);
+    }
+    if (!JS_IsObject(manifest) || JS_IsArray(manifest))
+    {
+        JS_FreeValue(context, manifest);
+        throw std::runtime_error("Manifest must be an object: " + name);
+    }
+    JSValue entry = JS_GetPropertyStr(context, manifest, "entry");
+    JS_FreeValue(context, manifest);
+    if (JS_IsUndefined(entry))
+    {
+        JS_FreeValue(context, entry);
+        return std::nullopt;
+    }
+    if (!JS_IsString(entry))
+    {
+        JS_FreeValue(context, entry);
+        throw std::runtime_error("Manifest entry must be a string: " + name);
+    }
+    const char *value = JS_ToCString(context, entry);
+    std::string result = value ? value : "";
+    JS_FreeCString(context, value);
+    JS_FreeValue(context, entry);
+    if (result.empty()) return std::nullopt;
+    return result;
 }
